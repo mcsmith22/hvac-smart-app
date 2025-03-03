@@ -1,6 +1,10 @@
 # hvac-smart-app
 App for displaying data from our HVAC smart solution. -- CAPSTONE CREATE-X
 
+really helpful project tutorial/resource:
+https://expo.dev/blog/how-to-build-a-bluetooth-low-energy-powered-expo-app
+
+
 ## Prerequisites
 
 - **Node.js & npm:**  

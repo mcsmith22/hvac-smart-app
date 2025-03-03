@@ -1,90 +1,69 @@
-// import { Link } from 'expo-router';
-// import { View, Text, StyleSheet } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Button, FlatList, Platform, PermissionsAndroid } from 'react-native';
 import { BleManager } from 'react-native-ble-plx';
 import { router } from 'expo-router';
 
-// export default function BLEConnect() {
-//     return (
-//         <View style={styles.container}>
-//             <Text>Dope</Text> 
-//         </View>
-        
-//     );
-// }
-
-
-// const styles = StyleSheet.create({
-//     container: {
-//     flex: 1,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     },
-// });
-
-
 export default function BLEConnect() {
-const [devices, setDevices] = useState([]);
+const [devices, setDevices] = useState([]); // to keep track of the devices that we find
 const bleManager = new BleManager();
 
-// Request necessary permissions on Android
+// Android permissions
 const requestPermissions = async () => {
-    if (Platform.OS === 'android') {
-    const granted = await PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-    ]);
-
-    if (
-        granted['android.permission.ACCESS_FINE_LOCATION'] !== PermissionsAndroid.RESULTS.GRANTED ||
-        granted['android.permission.BLUETOOTH_SCAN'] !== PermissionsAndroid.RESULTS.GRANTED ||
-        granted['android.permission.BLUETOOTH_CONNECT'] !== PermissionsAndroid.RESULTS.GRANTED
-    ) {
-        console.warn('Bluetooth permissions not granted');
-    }
+    if (Platform.OS === 'android') { //android needs these to allow for BLE usaeg
+        const granted = await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        ]);
+        //if the user doesnt accept all permissions, they cant use BLE 
+        if (granted['android.permission.ACCESS_FINE_LOCATION'] !== PermissionsAndroid.RESULTS.GRANTED || granted['android.permission.BLUETOOTH_SCAN'] !== PermissionsAndroid.RESULTS.GRANTED || granted['android.permission.BLUETOOTH_CONNECT'] !== PermissionsAndroid.RESULTS.GRANTED) {
+            console.warn('Bluetooth permissions not granted');
+            }
     }
 };
 
 useEffect(() => {
     requestPermissions();
-
-    // Cleanup on unmount
     return () => {
-    bleManager.destroy();
+    bleManager.destroy(); // cleans up 
     };
 }, []);
 
 // Scan for BLE devices for 10 seconds
 const scanDevices = () => {
-    setDevices([]); // Clear the previous list
+    setDevices([]); //clear devices from previous scans
 
     bleManager.startDeviceScan(null, null, (error, device) => {
     if (error) {
-        console.warn('Scan error:', error);
+        console.warn('Problem scanning: ', error);
         return;
     }
     if (device && device.name) {
-        setDevices(prevDevices => {
-        if (!prevDevices.some(d => d.id === device.id)) {
-            return [...prevDevices, device];
+        // Update the list of devices with the new device if it's not already included.
+        setDevices(seenDevices => {
+
+        const deviceAlreadyAdded= seenDevices.some( //check if device has been added to current devices
+            existingDevice => existingDevice.id === device.id
+        );
+        
+        if (deviceAlreadyAdded === false) {
+            return (seenDevices.concat(device));
         }
-        return prevDevices;
+        
+        return seenDevices;
         });
     }
     });
 
-    // Stop scanning after 10 seconds
     setTimeout(() => {
     bleManager.stopDeviceScan();
-    }, 10000);
+    }, 10000); // scans for 10 seconds
 };
 
 return (
     <View style={styles.container}>
-    <Text style={styles.heading}>BLE Connect</Text>
-    <Button title="Scan for BLE Devices" onPress={scanDevices} />
+    <Text style={styles.heading}>Connect to Sensor</Text>
+    <Button title="Scan for Devices" onPress={scanDevices} />
     <FlatList
         data={devices}
         keyExtractor={(item) => item.id}
