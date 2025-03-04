@@ -1,17 +1,3 @@
-// <<<<<<< HEAD
-// import { Link } from 'expo-router';
-// import { View, Text, StyleSheet, Button } from 'react-native';
-// import { router } from 'expo-router';
-
-// export default function HomeScreen() {
-//   return (
-//     <View style={styles.container}>
-//       <Text>Home</Text>
-//       <Link href="/bleconnect">Homepage helooooo</Link>
-//       <Button title="Connect to Device" onPress={() => router.push('/bleconnect')} />
-//     </View>
-// =======
-// app/index.tsx
 import React, { useState } from 'react';
 
 import {
@@ -146,19 +132,10 @@ export default function HomeScreen() {
 
       </SafeAreaView>
     </>
-// >>>>>>> origin/main
   );
 }
 
 const styles = StyleSheet.create({
-// <<<<<<< HEAD
-//   container: {
-//     flex: 1,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-// });
-// =======
   container: { flex: 1, backgroundColor: '#fff' },
   headerWrapper: {
     backgroundColor: '#fff',
@@ -206,4 +183,3 @@ const styles = StyleSheet.create({
   },
 
 });
-// >>>>>>> origin/main
