@@ -1,14 +1,15 @@
-// app/index.tsx
 import React, { useState } from 'react';
+
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   FlatList,
-  SafeAreaView
+  SafeAreaView,
+  Button
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, router, Link } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 type SystemStatus = 'good' | 'warning' | 'failure';
@@ -125,7 +126,7 @@ export default function HomeScreen() {
         />
 
         {/* CALVIN THIS IS THE CONNECT BUTTON*/}
-        <TouchableOpacity style={styles.fab} onPress={() => null}>
+        <TouchableOpacity style={styles.fab} onPress={() => router.push('/bleconnect')}>
           <Text style={styles.fabText}>Connect New Device</Text>
         </TouchableOpacity>
 
