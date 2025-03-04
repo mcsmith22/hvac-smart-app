@@ -1,5 +1,9 @@
 import { Stack } from "expo-router";
 
-export default function HomeScreen() {
+// <<<<<<< HEAD
+// export default function HomeScreen() {
+// =======
+export default function RootLayout() {
+// >>>>>>> origin/main
   return <Stack />;
 }
