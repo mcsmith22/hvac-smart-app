@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Button, FlatList, Platform, PermissionsAndroid } from 'react-native';
+import { View, Text, StyleSheet, Button, FlatList, Platform, PermissionsAndroid, TextInput } from 'react-native';
 import { BleManager } from 'react-native-ble-plx';
 import { router } from 'expo-router';
 
 export default function BLEConnect() {
 const [devices, setDevices] = useState([]); // to keep track of the devices that we find
 const bleManager = new BleManager();
+const [connected, setConnected] = useState(false);
+const [wifiSSID, setWifiSSID] = useState('');
+const [wifiPassword, setWifiPassword] = useState('');
 
 // Android permissions
 const requestPermissions = async () => {
@@ -29,9 +32,8 @@ useEffect(() => {
     };
 }, []);
 
-// Scan for BLE devices for 10 seconds
 const scanDevices = () => {
-    setDevices([]); //clear devices from previous scans
+    setDevices([]); //empties previous scan
 
     bleManager.startDeviceScan(null, null, (error, device) => {
     if (error) {
@@ -39,7 +41,16 @@ const scanDevices = () => {
         return;
     }
     if (device && device.name) {
-        // Update the list of devices with the new device if it's not already included.
+        if (device.name === "HVASEE Sensor" || device.name === "ESP32-BLE-Device") {
+            // console.log("helooosososos")
+            // console.log(device)
+            // setourDevice(device)
+            connect(device)
+
+
+            bleManager.stopDeviceScan()
+        }
+        
         setDevices(seenDevices => {
 
         const deviceAlreadyAdded= seenDevices.some( //check if device has been added to current devices
@@ -59,15 +70,67 @@ const scanDevices = () => {
     bleManager.stopDeviceScan();
     }, 10000); // scans for 10 seconds
 };
+const connect = async (device) => {
+    console.log("Made it to connect ---------")
+    console.warn("trying to connect")
+    console.log(device)
+    try {
+        console.log("------------------------------------------------------------------------------")
+        // console.log(device.id)
+        // console.log(bleManager)
+        await bleManager.connectToDevice(device.id).then(connectedDevice=>{ 
+
+            console.log('Connected to device:', connectedDevice.name);  
+            console.warn("%cSuccessfully connected!", "color : ")
+            
+            // Add your logic for handling the connected device 
+            // let connected = true
+            setConnected(true);
+            console.log(connectedDevice)
+            return connectedDevice.discoverAllServicesAndCharacteristics();
+        }).catch(error => { 
+            // Handle errors 
+        })
+    } catch (error) {
+        console.error('Error connecting to device:', error);
+    }
+
+};
+const handleSubmitCredentials = () => {
+    //use writeCharacteristicWithResponseForService to send inputted wifi/pswd to ESP chip
+    console.log('WiFi SSID:', wifiSSID, 'Password:', wifiPassword);
+};
 
 return (
     <View style={styles.container}>
     <Text style={styles.heading}>Connect to Sensor</Text>
     <Button title="Scan for Devices" onPress={scanDevices} />
+    {connected && (
+        <View style={styles.wifiContainer}>
+        <Button title="Disconnect" onPress={() => {bleManager.destroy()}}/>
+        <Text style={styles.subHeading}>Enter WiFi Credentials</Text>
+        <TextInput
+            style={styles.input}
+            placeholder="WiFi Name (SSID)"
+            value={wifiSSID}
+            onChangeText={setWifiSSID}
+        />
+        <TextInput
+            style={styles.input}
+            placeholder="WiFi Password"
+            secureTextEntry
+            value={wifiPassword}
+            onChangeText={setWifiPassword}
+        />
+        <Button title="Submit Credentials" onPress={handleSubmitCredentials} />
+    </View>
+    
+    )}
+
     <FlatList
         data={devices}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
+        renderItem={({ item }) => ( // allows to be scrolled
         <Text style={styles.deviceText}>
             {item.name} ({item.id})
         </Text>
@@ -92,5 +155,23 @@ heading: {
 deviceText: {
     fontSize: 16,
     marginVertical: 5,
+},
+wifiContainer: {
+    marginTop: 20,
+    width: '100%',
+    alignItems: 'center',
+},
+subHeading: {
+    fontSize: 20,
+    marginBottom: 10,
+},
+input: {
+    height: 40,
+    width: '90%',
+    borderColor: '#ccc',
+    borderWidth: 1,
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    borderRadius: 5,
 },
 });
