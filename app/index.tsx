@@ -6,7 +6,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <Text>Home</Text>
-      <Link href="/bleconnect">Homepage</Link>
+      <Link href="/bleconnect">Homepage helooooo</Link>
       <Button title="Connect to Device" onPress={() => router.push('/bleconnect')} />
     </View>
   );
