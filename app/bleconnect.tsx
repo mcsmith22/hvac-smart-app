@@ -71,8 +71,6 @@ const scanDevices = () => {
     }, 10000); // scans for 10 seconds
 };
 const connect = async (device) => {
-    console.log("Made it to connect ---------")
-    console.warn("trying to connect")
     console.log(device)
     try {
         console.log("------------------------------------------------------------------------------")
@@ -82,8 +80,6 @@ const connect = async (device) => {
 
             console.log('Connected to device:', connectedDevice.name);  
             console.warn("%cSuccessfully connected!", "color : ")
-            
-            // Add your logic for handling the connected device 
             // let connected = true
             setConnected(true);
             console.log(connectedDevice)
