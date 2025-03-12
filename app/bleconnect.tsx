@@ -183,6 +183,7 @@ container: {
 heading: {
     fontSize: 24,
     marginBottom: 20,
+    marginTop: 65,
 },
 deviceText: {
     fontSize: 16,
