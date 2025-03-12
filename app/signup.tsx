@@ -2,21 +2,21 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 
-export default function LoginScreen() {
+export default function SignupScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    // login logic goes here
+  const handleSignup = () => {
+    // signup logic goes here
     router.push('/home');
   };
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Login' }} />
+      <Stack.Screen options={{ title: 'Sign Up' }} />
       <View style={styles.container}>
-        <Text style={styles.title}>Login</Text>
+        <Text style={styles.title}>Sign Up</Text>
 
         <TextInput
           style={styles.input}
@@ -33,12 +33,12 @@ export default function LoginScreen() {
           value={password}
         />
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Log In</Text>
+        <TouchableOpacity style={styles.button} onPress={handleSignup}>
+          <Text style={styles.buttonText}>Create Account</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.link} onPress={() => router.push('/signup')}>
-          <Text style={styles.linkText}>Don’t have an account? Sign Up</Text>
+        <TouchableOpacity style={styles.link} onPress={() => router.push('/')}>
+          <Text style={styles.linkText}>Already have an account? Log In</Text>
         </TouchableOpacity>
       </View>
     </>
