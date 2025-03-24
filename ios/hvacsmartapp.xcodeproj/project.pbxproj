@@ -404,7 +404,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.anonymous.hvac-smart-app";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.calvin.hvac-smart-app";
 				PRODUCT_NAME = hvacsmartapp;
 				SWIFT_OBJC_BRIDGING_HEADER = "hvacsmartapp/hvacsmartapp-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -436,7 +436,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.anonymous.hvac-smart-app";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.calvin.hvac-smart-app";
 				PRODUCT_NAME = hvacsmartapp;
 				SWIFT_OBJC_BRIDGING_HEADER = "hvacsmartapp/hvacsmartapp-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
