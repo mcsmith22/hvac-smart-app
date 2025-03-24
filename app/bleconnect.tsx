@@ -3,19 +3,45 @@ import { View, Text, StyleSheet, Button, FlatList, Platform, PermissionsAndroid,
 import { BleManager } from 'react-native-ble-plx';
 import { router } from 'expo-router';
 import { Buffer } from 'buffer';
+import { scanNetworks } from './wificonnections';;
 
 export default function BLEConnect() {
+// const [connectedDevice, setDevice] = useState(null);
 const [devices, setDevices] = useState([]); // to keep track of the devices that we find
+const [wifiNetworks, setWifiNetworks] = useState([]); // same thing for wifi
 const bleManager = new BleManager();
 const [connected, setConnected] = useState(false);
-const [wifiSSID, setWifiSSID] = useState('');
-const [wifiPassword, setWifiPassword] = useState('');
+
 const [connectedDevice, setConnectedDevice] = useState(null);
 const [clearInputs, setClearInputs] = useState(false);
-// const [base64Data, setBase64Data] = useState(null);
+const [foundNetworks, setFoundNetworks] = useState(false);
+
+const [successfullyConnectedWifi, setSuccessfullyConnectedWifi] = useState("");
+
+useEffect(() => {
+    console.log("wifi connected and changed value");
+    if (successfullyConnectedWifi.length > 1) {
+        setShowConnection(true);
+    }
+}, [successfullyConnectedWifi]);
+
+useEffect(() => {
+    console.log("wifiNetworks updated:", wifiNetworks);
+    // Perform any actions that depend on wifiNetworks here
+    if (wifiNetworks.length > 0) {
+        setFoundNetworks(true);
+        for (let i = 0; i < wifiNetworks.length; i++) {
+            let name = wifiNetworks[i]["ssid"];
+            console.log(name);
+        }
+    } 
+
+}, [wifiNetworks]);
 
 const wifiServiceUUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
 const wifiCharacteristicUUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+const testing = [{"ssid":"Apartment Gr8 2.4_EXT","rssi":-38,"encryption":"Secured"},{"ssid":"Apartment Gr8 2.4","rssi":-44,"encryption":"Secured"},{"ssid":"Sonic-2024","rssi":-46,"encryption":"Secured"}];
 
 // Android permissions
 const requestPermissions = async () => {
@@ -47,29 +73,22 @@ const scanDevices = () => {
         console.warn('Problem scanning: ', error);
         return; 
     }
-    console.log("device.name")
     if (device && device.name) {
         if (device.name === "HVASEE Sensor" || device.name === "ESP32-BLE-Device") {
-            console.log("helooosososos")
             // console.log(device)
             // setourDevice(device)
+            setConnectedDevice(device)
             connect(device)
-
-
             bleManager.stopDeviceScan()
         }
-
         //this is to display other BLE devices in range, which we wont need but might want for testing
         setDevices(seenDevices => {
-
-        const deviceAlreadyAdded= seenDevices.some( //check if device has been added to current devices
+        const deviceAlreadyAdded = seenDevices.some( //check if device has been added to current devices
             existingDevice => existingDevice.id === device.id
         );
-        
         if (deviceAlreadyAdded === false) {
             return (seenDevices.concat(device));
         }
-        
         return seenDevices;
         });
     }
@@ -79,24 +98,68 @@ const scanDevices = () => {
     bleManager.stopDeviceScan();
     }, 10000); // scans for 10 seconds
 };
-const connect = async (device) => {
-    console.log(device)
-    try {
-        console.log("------------------------------------------------------------------------------")
-        await bleManager.connectToDevice(device.id).then(connectedDev=>{ 
 
-            console.log('Connected to device:', connectedDev.name);  
-            console.warn("%cSuccessfully connected!", "color : ")
-            // let connected = true
-            setConnected(true);
-            setConnectedDevice(connectedDev);
-            console.log(connectedDev)
-            return connectedDev.discoverAllServicesAndCharacteristics();
-        }).catch(error => { 
-        })
+    const handleScanNetworks = async () => {
+    // call for wifi scan from esp-32 chip
+    // display all of the results from the scan wih "connect" buttons next to them
+    //clicking this button makes you input the pswd
+        try {
+            if (connectedDevice === null) {
+                console.log("No connected device, can't scan for Wifi");
+            } else {
+                const scanResults = await scanNetworks(connectedDevice);
+            }
+        } catch (error) {
+            console.error('Failed to scan networks:', error);
+        }
+    };
+
+
+const connect = async (device) => {
+    // console.log(device);
+    try {
+        console.log("------------------------------------------------------------------------------");
+        const connectedDev = await bleManager.connectToDevice(device.id);
+        console.log('Connected to device:', connectedDev.name);
+        
+        setConnectedDevice(connectedDev);
+        
+        await connectedDev.discoverAllServicesAndCharacteristics();
+        
+        // Subscribe to notifications from device;
+        connectedDev.monitorCharacteristicForService(
+        wifiServiceUUID,
+        wifiCharacteristicUUID,
+        (error, characteristic) => {
+            if (error) {
+                console.warn("Notification error:", error);
+                return;
+            }
+            if (characteristic?.value) {
+                    const decodedValue = Buffer.from(characteristic.value, 'base64').toString();
+                    console.log("Received notification", decodedValue);
+                if (decodedValue[0] === "[") { // basic check to see if this is the first notification expected, a json with all of the wifi networks
+                    try {
+                        const networks = JSON.parse(decodedValue);
+                        setWifiNetworks(networks);
+                    } catch (e) {
+                        console.error("Error parsing JSON:", e);
+                    }
+                } else if (decodedValue[0] === "C"){
+                    setSuccessfullyConnectedWifi(decodedValue);
+                } else { // connection failed
+                    console.log("conenctio failed");
+                    setSuccessfullyConnectedWifi(decodedValue); // just so that it displays
+                }
+
+            }
+        }
+        );
+        setConnected(true);
     } catch (error) {
         console.error('Error connecting to device:', error);
     }
+
 
 };
 const handleSubmitCredentials = async () => {
@@ -106,39 +169,46 @@ const handleSubmitCredentials = async () => {
     console.log('Data to send:', dataToSend);
 
     try {
-    // Compute the base64 string in a local variable
-    const computedBase64Data = Buffer.from(dataToSend, 'utf8').toString('base64');
-    console.log('Computed Base64 data:', computedBase64Data);
-    console.log("--------------------------------------------------------------");
+        // Compute the base64 string in a local variable
+        const computedBase64Data = Buffer.from(dataToSend, 'utf8').toString('base64');
+        console.log('Computed Base64 data:', computedBase64Data);
 
-    if (connectedDevice) {
-        try {
-        const result = await connectedDevice.writeCharacteristicWithResponseForService(
-            wifiServiceUUID,
-            wifiCharacteristicUUID,
-            computedBase64Data
-        );
-        console.log('Data successfully written:', result);
-        } catch (error) {
-        console.error('Error writing credentials:', error);
+        if (connectedDevice) {
+            try {
+            const result = await connectedDevice.writeCharacteristicWithResponseForService(
+                wifiServiceUUID,
+                wifiCharacteristicUUID,
+                computedBase64Data
+            );
+            console.log('Data successfully written:', result);
+            } catch (error) {
+            console.error('Error writing credentials:', error);
+            }
+            setClearInputs(true); 
+        } else {
+            console.warn("No device connected!");
         }
-        setClearInputs(true); 
-    } else {
-        console.warn("No device connected!");
-    }
     } catch (error) {
-    console.log("Couldn't convert to base64", error);
+        console.log("line 183 in handlesubmitcredentials");
     }
 };
+// -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
+const [wifiSSID, setWifiSSID] = useState('');
+const [wifiPassword, setWifiPassword] = useState('');
+const [showPasswordInput, setShowPasswordInput] = useState(false);
+const [showConnection, setShowConnection] = useState(false);
 return (
     <View style={styles.container}>
     <Text style={styles.heading}>Connect to Sensor</Text>
-     <Button title="Scan for Devices" onPress={scanDevices} /> {/*Think I want to make this disappear when connection is made, and reappear when disconnected */}
-    {connected && (
+    {showConnection && (
+        <Text>{successfullyConnectedWifi}</Text>
+    )}
+    {/*Think I want to make this disappear when connection is made, and reappear when disconnected */}
+    <Button title="Scan for Devices" onPress={scanDevices} /> 
+    {connected && (!foundNetworks) && (
         <View style={styles.wifiContainer} >
-        <Button title="Disconnect" onPress={() => {bleManager.destroy()}}/>
+        
         <Text style={styles.subHeading}>Enter WiFi Credentials</Text>
         <TextInput
             style={styles.input}
@@ -154,12 +224,19 @@ return (
             onChangeText={setWifiPassword}
         />
         <Button title="Submit Credentials" onPress={handleSubmitCredentials} />
+        
     </View>
-    
+    )}
+
+    {connected && (
+    <View>
+        <Button title="Scan for wifis lol" onPress={handleScanNetworks}/>
+        <Button title="Disconnect" color="red" onPress={() => {bleManager.destroy()}}/>
+    </View>
     )}
 
     {/* meant to be a list of all devices found with bluetooth provisioning */}
-    <FlatList
+    {!connected ? (<FlatList
         data={devices}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => ( // so we can scroll
@@ -167,8 +244,51 @@ return (
             {item.name} ({item.id})
         </Text>
         )}
-    />
-    {/* <Button title="Go Back" onPress={() => router.back()} /> had this to return to prev page but theres one in top left that deos the same thing*/} 
+    />) : <Text selectionColor="green">Connected!</Text>}
+    
+    
+    {foundNetworks && (
+
+
+    <View>
+        {(!showPasswordInput) && (
+            <FlatList
+                data={wifiNetworks}
+                keyExtractor={(_, index) => index.toString()}
+                renderItem={({ item }) => (
+                <View style={styles.row}>
+                    <Text style={styles.deviceText}>
+                    {item.ssid} ({item.encryption})
+                    </Text>
+                    <Button
+                    title="Connect"
+                    onPress={() => {
+                        setWifiSSID(item.ssid);
+                        console.log("setting pswd input now");
+                        setShowPasswordInput(true);
+                    }}
+                    />
+                </View>
+                )}
+            />
+        )}
+        {showPasswordInput && (
+            <View>
+                <TextInput
+                    style={styles.input}
+                    placeholder="WiFi Password"
+                    secureTextEntry
+                    value={wifiPassword}
+                    onChangeText={setWifiPassword}
+                />
+                <Button title="Submit Credentials" onPress={handleSubmitCredentials} />
+            </View>
+        )}
+    </View>
+
+
+    )}
+    <Button title="Go Back" onPress={() => router.back()} />
     </View>
 );
 }
@@ -206,5 +326,14 @@ input: {
     marginBottom: 10,
     paddingHorizontal: 10,
     borderRadius: 5,
+},
+row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
 },
 });
