@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; 
 
 import {
   StyleSheet,
@@ -43,11 +43,61 @@ export default function HomeScreen() {
   
   ]);
 
+  const statusInfo = {
+    good:    { color: '#39b54a', text: 'No Warnings', icon: 'checkmark-circle' },
+    warning: { color: '#f7b500', text: 'Warning',     icon: 'alert-circle'    },
+    failure:   { color: '#ff3b30', text: 'Failure',       icon: 'close-circle'    },
+  };
+
+  const [color, setColor] = useState('');
+
+  const fetchColor = async () => {
+    try {
+      const response = await fetch('https://hvasee.azurewebsites.net/api/getcolor');
+      const data = await response.json();
+      console.log('Parsed data:', data);
+
+      let newStatus: SystemStatus = 'good'
+
+      if (data.color == 'Red') {
+        newStatus = 'failure'
+
+      } else if (data.color == 'Yellow') {
+        newStatus = 'warning'
+
+      }
+
+      setSystems((prev) => {
+        const updated = [...prev];
+        updated[0] = { ...updated[0], status: newStatus };
+        return updated;
+      });
+
+    } catch (error) {
+      console.error('Error fetching color:', error);
+      
+    }
+  };
+
+
+  useEffect(() => { 
+    fetchColor();
+
+    const intervalId = setInterval(() => {
+      fetchColor();
+    }, 1000);
+
+    
+    return () => clearInterval(intervalId);
+
+  }, []);
+
   let overallStatus: SystemStatus = 'good';
   for (const sys of systems) {
     if (sys.status === 'failure') {
 
-      return overallStatus = 'failure';
+      overallStatus = 'failure';
+      break;
 
     } else if (sys.status === 'warning') {
 
@@ -55,18 +105,11 @@ export default function HomeScreen() {
     }
   }
 
-  const statusInfo = {
-    good:    { color: '#39b54a', text: 'No Warnings', icon: 'checkmark-circle' },
-    warning: { color: '#f7b500', text: 'Warning',     icon: 'alert-circle'    },
-    failure:   { color: '#ff3b30', text: 'Failure',       icon: 'close-circle'    },
-  };
-
-
   const renderSystemItem = ({ item }: { item: HVACSystem }) => (
     <TouchableOpacity
       style={styles.card}
       // This is se up to navigate to a new page. Replace path once device/system pages are created.
-      onPress={() => router.push(`/device/${item.id}`)}
+      onPress={() => null }
     >
       <View style={styles.cardLeft}>
         <Ionicons name="snow" size={24} color="#000" style={{ marginRight: 8 }} />
@@ -125,6 +168,7 @@ export default function HomeScreen() {
           contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10 }}
         />
 
+
         {/* CALVIN THIS IS THE CONNECT BUTTON*/}
         <TouchableOpacity style={styles.fab} onPress={() => router.push('/bleconnect')}>
           <Text style={styles.fabText}>Connect New Device</Text>
@@ -181,5 +225,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
+
 
 });
