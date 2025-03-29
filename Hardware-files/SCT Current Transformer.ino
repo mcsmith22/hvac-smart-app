@@ -1,5 +1,5 @@
 #include <Wire.h>
-#include <Adafruit_ADS1015.h>
+#include <Adafruit_ADS1X15.h>
 
 Adafruit_ADS1115 ads;
 
