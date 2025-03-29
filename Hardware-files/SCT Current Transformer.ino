@@ -3,7 +3,7 @@
 
 Adafruit_ADS1115 ads;
 
-const float FACTOR = 20; //20A/1V from teh CT
+const float FACTOR = 20; //20A/1V from the CT
 
 const float multiplier = 0.00005;
 
