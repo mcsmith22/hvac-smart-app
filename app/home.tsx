@@ -80,17 +80,17 @@ export default function HomeScreen() {
   };
 
 
-  useEffect(() => { 
-    fetchColor();
+  // useEffect(() => { 
+    // fetchColor();
 
-    const intervalId = setInterval(() => {
-      fetchColor();
-    }, 1000);
+    // const intervalId = setInterval(() => {
+    //   fetchColor();
+    // }, 1000);
 
     
-    return () => clearInterval(intervalId);
+    // return () => clearInterval(intervalId);
 
-  }, []);
+  // }, []);
 
   let overallStatus: SystemStatus = 'good';
   for (const sys of systems) {

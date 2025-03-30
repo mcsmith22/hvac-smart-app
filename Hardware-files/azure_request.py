@@ -24,57 +24,57 @@ database_id = "ColorsDB"
 collection_id = "ColorReadings"
 url = f"https://{COSMOS_HOST}/dbs/{database_id}/colls/{collection_id}/docs"
 
-def scan_wifi():
-    sta_if = network.WLAN(network.STA_IF)
-    sta_if.active(True)
+# def scan_wifi():
+#     sta_if = network.WLAN(network.STA_IF)
+#     sta_if.active(True)
 
-    networks = sta_if.scan()
+#     networks = sta_if.scan()
     
-    for net in networks:
-        ssid_bytes, bssid, channel, rssi, authmode, hidden = net
-        ssid = ssid_bytes.decode('utf-8')
+#     for net in networks:
+#         ssid_bytes, bssid, channel, rssi, authmode, hidden = net
+#         ssid = ssid_bytes.decode('utf-8')
         
-        print("SSID:", ssid)
-        print("  RSSI:", rssi)
-        print("  Channel:", channel)
-        print("  Authmode:", authmode)
-        print("  Hidden:", hidden)
-        print()
+#         print("SSID:", ssid)
+#         print("  RSSI:", rssi)
+#         print("  Channel:", channel)
+#         print("  Authmode:", authmode)
+#         print("  Hidden:", hidden)
+#         print()
 
-        if ssid in wifis:
-        print(ssid)
-        return ssid
+#         if ssid in wifis:
+#         print(ssid)
+#         return ssid
 
-def connect_wifi(known):
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-    if not wlan.isconnected():
-        wlan.connect(known, wifis[known])
-        while not wlan.isconnected():
-            time.sleep(1)
-    print("WiFi connected:", known, " ", wlan.ifconfig())
+# def connect_wifi(known):
+#     wlan = network.WLAN(network.STA_IF)
+#     wlan.active(True)
+#     if not wlan.isconnected():
+#         wlan.connect(known, wifis[known])
+#         while not wlan.isconnected():
+#             time.sleep(1)
+#     print("WiFi connected:", known, " ", wlan.ifconfig())
 
-def hmac_sha256(key, msg):
-    # (Same code as above)
-    block_size = 64
-    if len(key) > block_size:
-        key = hashlib.sha256(key).digest()
-    if len(key) < block_size:
-        key = key + b'\x00' * (block_size - len(key))
-    o_key_pad = bytes([k ^ 0x5C for k in key])
-    i_key_pad = bytes([k ^ 0x36 for k in key])
-    inner_hash = hashlib.sha256(i_key_pad + msg).digest()
-    return hashlib.sha256(o_key_pad + inner_hash).digest()
+# def hmac_sha256(key, msg):
+#     # (Same code as above)
+#     block_size = 64
+#     if len(key) > block_size:
+#         key = hashlib.sha256(key).digest()
+#     if len(key) < block_size:
+#         key = key + b'\x00' * (block_size - len(key))
+#     o_key_pad = bytes([k ^ 0x5C for k in key])
+#     i_key_pad = bytes([k ^ 0x36 for k in key])
+#     inner_hash = hashlib.sha256(i_key_pad + msg).digest()
+#     return hashlib.sha256(o_key_pad + inner_hash).digest()
 
-def create_auth_token(verb, resource_type, resource_id, date_string, master_key_b64):
-    lower_payload = (verb.lower() + "\n" +
-                    resource_type.lower() + "\n" +
-                    resource_id + "\n" +
-                    date_string.lower() + "\n\n")
-    key = ubinascii.a2b_base64(master_key_b64)
-    raw_hmac = hmac_sha256(key, lower_payload.encode('utf-8'))
-    sig_b64 = ubinascii.b2a_base64(raw_hmac).strip()
-    return "type=master&ver=1.0&sig=" + sig_b64.decode('utf-8')
+# def create_auth_token(verb, resource_type, resource_id, date_string, master_key_b64):
+#     lower_payload = (verb.lower() + "\n" +
+#                     resource_type.lower() + "\n" +
+#                     resource_id + "\n" +
+#                     date_string.lower() + "\n\n")
+#     key = ubinascii.a2b_base64(master_key_b64)
+#     raw_hmac = hmac_sha256(key, lower_payload.encode('utf-8'))
+#     sig_b64 = ubinascii.b2a_base64(raw_hmac).strip()
+#     return "type=master&ver=1.0&sig=" + sig_b64.decode('utf-8')
 
 def rfc1123_date_now():
     wdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -152,19 +152,12 @@ def main():
             print("Color Name:", color_name)
 
             if color_name != "Unknown":
-            date_header, category_info = rfc1123_date_now()
+                date_header, category_info = rfc1123_date_now()
         
-            auth_token = create_auth_token("POST", resource_type, resource_link, date_header, MASTER_KEY_B64)
+
 
             formatted_date = f"{category_info[0]}-{category_info[1]}-{category_info[2]}-{category_info[3]}-{category_info[4]}-{category_info[5]}"
-            # headers = {
-            #     "Authorization": auth_token,
-            #     "x-ms-date": date_header,
-            #     "x-ms-version": "2018-12-31",
-            #     "Content-Type": "application/json",
-            #     "x-ms-documentdb-is-upsert": "True",
-            #     "x-ms-documentdb-partitionkey": f"[\"testArduino\"]"
-            # }
+
 
             headers = {
                 "Content-Type": "application/json"
@@ -175,11 +168,6 @@ def main():
             
             print(headers)
             print(body)
-            
-            # resp = urequests.post(url, data=body, headers=headers)
-            # print("Status:", resp.status_code)
-            # print("Body:", resp.text)
-            # resp.close()
 
             resp = urequests.post(FUNCTION_URL, data=body, headers=headers) ## this is the major difficulty 
             print("Status:", resp.status_code)

@@ -385,7 +385,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = hvacsmartapp/hvacsmartapp.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = RB8CTG59K4;
+				DEVELOPMENT_TEAM = KCUR79XM8Z;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -404,7 +404,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.calvin.hvac-smart-app";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.hvasee.hvac-smart-app";
 				PRODUCT_NAME = hvacsmartapp;
 				SWIFT_OBJC_BRIDGING_HEADER = "hvacsmartapp/hvacsmartapp-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -422,7 +422,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = hvacsmartapp/hvacsmartapp.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = RB8CTG59K4;
+				DEVELOPMENT_TEAM = KCUR79XM8Z;
 				INFOPLIST_FILE = hvacsmartapp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -436,7 +436,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.calvin.hvac-smart-app";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.hvasee.hvac-smart-app";
 				PRODUCT_NAME = hvacsmartapp;
 				SWIFT_OBJC_BRIDGING_HEADER = "hvacsmartapp/hvacsmartapp-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
