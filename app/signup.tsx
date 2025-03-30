@@ -1,62 +1,114 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { SafeAreaView, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../.expo/config/firebase';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 export default function SignupScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
-  const handleSignup = () => {
-    // signup logic goes here
-    router.push('/home');
+  const parseAuthError = (code: string): string => {
+    switch (code) {
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/weak-password':
+        return 'Password should be at least 6 characters.';
+      case 'auth/email-already-in-use':
+        return 'That email address is already in use.';
+      default:
+        return 'Something went wrong. Please try again.';
+    }
+  };
+
+  const handleSignup = async () => {
+
+    if (!email.trim()) {
+      setErrorMessage('Please enter an email.');
+      return;
+    }
+    if (!password) {
+      setErrorMessage('Please enter a password.');
+      return;
+    }
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      console.log('User created:', userCredential.user);
+      setErrorMessage('');
+      router.replace('/'); 
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      setErrorMessage(parseAuthError(error.code));
+    }
   };
 
   return (
     <>
       <Stack.Screen options={{ title: 'Sign Up' }} />
-      <View style={styles.container}>
-        <Text style={styles.title}>Sign Up</Text>
-
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.title}>Create an Account</Text>
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
         <TextInput
-          style={styles.input}
+          style={[styles.input, styles.wideInput]}
           placeholder="Email"
           autoCapitalize="none"
           onChangeText={setEmail}
           value={email}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          secureTextEntry
-          onChangeText={setPassword}
-          value={password}
-        />
-
-        <TouchableOpacity style={styles.button} onPress={handleSignup}>
-          <Text style={styles.buttonText}>Create Account</Text>
+        <View style={[styles.passwordContainer, styles.wideInput]}>
+          <TextInput
+            style={[styles.input, styles.passwordInput]}
+            placeholder="Password"
+            secureTextEntry={!passwordVisible}
+            onChangeText={setPassword}
+            value={password}
+          />
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setPasswordVisible(!passwordVisible)}
+          >
+            <Ionicons
+              name={passwordVisible ? 'eye-off' : 'eye'}
+              size={20}
+              color="#49aae6"
+            />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.requirementsText}>
+          Password must be at least 6 characters long.
+        </Text>
+        <TouchableOpacity style={[styles.button, styles.wideInput]} onPress={handleSignup}>
+          <Text style={styles.buttonText}>Sign Up</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.link} onPress={() => router.push('/')}>
           <Text style={styles.linkText}>Already have an account? Log In</Text>
         </TouchableOpacity>
-      </View>
+      </SafeAreaView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
+  container: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    paddingHorizontal: 20, 
     backgroundColor: '#fff',
+    alignItems: 'center'
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    alignSelf: 'center',
+  title: { 
+    fontSize: 28, 
+    fontWeight: 'bold', 
+    marginBottom: 20, 
+  },
+  errorText: {
+    color: 'red',
+    marginBottom: 10,
+    textAlign: 'center',
   },
   input: {
     borderWidth: 1,
@@ -64,6 +116,34 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    backgroundColor: '#fff'
+  },
+  wideInput: { 
+    width: '80%',
+    alignSelf: 'center'
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 16,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingRight: 40,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 10,
+    top: '50%', 
+    transform: [{ translateY: -21 }],
+    padding: 4,
+  },
+  requirementsText: { 
+    color: '#666', 
+    marginBottom: 16, 
+    fontSize: 14, 
+    textAlign: 'center' 
   },
   button: {
     backgroundColor: '#49aae6',
