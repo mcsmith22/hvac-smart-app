@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'; 
 
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,78 +7,91 @@ import {
   TouchableOpacity,
   FlatList,
   SafeAreaView,
-  Button
 } from 'react-native';
-import { Stack, useRouter, router, Link } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { getAuth } from 'firebase/auth';
 
 type SystemStatus = 'good' | 'warning' | 'failure';
-interface HVACSystem {
+
+interface DeviceData {
   id: string;
-  name: string;
-  location: string;
-  brand: string;
-  status: SystemStatus;
+  deviceId: string;
+  color: string;
+  date_of_req: string;
+  flash_sequence: string;
+  amp_measurement: number;
+  gas_value: number;
+  unit_type: string;
+  userId: string;
+  status?: SystemStatus;
 }
 
 export default function HomeScreen() {
   const router = useRouter();
-
-  const [systems, setSystems] = useState<HVACSystem[]>([
-    {
-      id: '1',
-      name: 'Main',
-      location: 'Basement',
-      brand: 'Carrier',
-      status: 'good',
-    },
-    {
-      id: '2',
-      name: 'Other',
-      location: 'Attic',
-      brand: 'Goodman',
-      status: 'good',
-    },
-
-  
-  ]);
+  const [devices, setDevices] = useState<DeviceData[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const statusInfo = {
-    good:    { color: '#39b54a', text: 'No Warnings', icon: 'checkmark-circle' },
-    warning: { color: '#f7b500', text: 'Warning',     icon: 'alert-circle'    },
-    failure:   { color: '#ff3b30', text: 'Failure',       icon: 'close-circle'    },
+    good: { color: '#39b54a', text: 'No Warnings', icon: 'checkmark-circle' },
+    warning: { color: '#f7b500', text: 'Warning', icon: 'alert-circle' },
+    failure: { color: '#ff3b30', text: 'Failure', icon: 'close-circle' },
   };
 
-  const [color, setColor] = useState('');
+  
+  const deriveStatus = (color: string): SystemStatus => {
+    if (color.toLowerCase() === 'red') return 'failure';
+    if (color.toLowerCase() === 'yellow') return 'warning';
+    return 'good';
+  };
 
-  const fetchColor = async () => {
+  const fetchDevices = async () => {
     try {
-      const response = await fetch('https://hvasee.azurewebsites.net/api/getcolor');
-      const data = await response.json();
-      console.log('Parsed data:', data);
-
-      let newStatus: SystemStatus = 'good'
-
-      if (data.color == 'Red') {
-        newStatus = 'failure'
-
-      } else if (data.color == 'Yellow') {
-        newStatus = 'warning'
-
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) {
+        console.log("No user signed in.");
+        return;
       }
-
-      setSystems((prev) => {
-        const updated = [...prev];
-        updated[0] = { ...updated[0], status: newStatus };
-        return updated;
+      const token = await user.getIdToken();
+      const response = await fetch('https://HVASee.azurewebsites.net/api/getColor', {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
       });
-
-    } catch (error) {
-      console.error('Error fetching color:', error);
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      const data: DeviceData[] = await response.json();
+      console.log('Fetched devices:', data);
       
+      const devicesMap = new Map<string, DeviceData>();
+      data.forEach((device) => {
+        const existing = devicesMap.get(device.deviceId);
+        if (!existing) {
+          devicesMap.set(device.deviceId, device);
+        } else {
+
+          if (new Date(device.date_of_req) > new Date(existing.date_of_req)) {
+            devicesMap.set(device.deviceId, device);
+          }
+        }
+      });
+      
+
+      const uniqueDevices = Array.from(devicesMap.values()).map((device) => ({
+        ...device,
+        status: deriveStatus(device.color),
+      }));
+      
+      setDevices(uniqueDevices);
+    } catch (error) {
+      console.error('Error fetching devices:', error);
+    } finally {
+      setLoading(false);
     }
   };
-
 
   // useEffect(() => { 
     // fetchColor();
@@ -93,50 +106,52 @@ export default function HomeScreen() {
   // }, []);
 
   let overallStatus: SystemStatus = 'good';
-  for (const sys of systems) {
-    if (sys.status === 'failure') {
-
+  devices.forEach((device) => {
+    if (device.status === 'failure') {
       overallStatus = 'failure';
-      break;
-
-    } else if (sys.status === 'warning') {
-
+    } else if (device.status === 'warning' && overallStatus !== 'failure') {
       overallStatus = 'warning';
     }
-  }
+  });
 
-  const renderSystemItem = ({ item }: { item: HVACSystem }) => (
+  const renderDeviceItem = ({ item }: { item: DeviceData }) => (
     <TouchableOpacity
       style={styles.card}
-      // This is se up to navigate to a new page. Replace path once device/system pages are created.
-      onPress={() => null }
+      onPress={() => router.push(`/device/${item.deviceId}`)}
     >
       <View style={styles.cardLeft}>
-        <Ionicons name="snow" size={24} color="#000" style={{ marginRight: 8 }} />
-        <Text style={styles.cardTitle}>{item.name}</Text>
+        <Ionicons
+          name="snow"
+          size={24}
+          color="#000"
+          style={{ marginRight: 8 }}
+        />
+        <Text style={styles.cardTitle}>{item.deviceId}</Text>
       </View>
 
       <View style={styles.cardInfo}>
-        <Text style={styles.cardInfoText}>Location: {item.location}</Text>
-        <Text style={styles.cardInfoText}>Brand: {item.brand}</Text>
+        <Text style={styles.cardInfoText}>Color: {item.color}</Text>
         <Text style={styles.cardInfoText}>
           Status:{' '}
           <Text
             style={{
               color:
                 item.status === 'good'
-                  ? '#39b54a'
+                  ? statusInfo.good.color
                   : item.status === 'warning'
-                  ? '#f7b500'
-                  : '#ff3b30',
+                  ? statusInfo.warning.color
+                  : statusInfo.failure.color,
               fontWeight: 'bold',
             }}
           >
-            {item.status === 'good' ? 'Good' : item.status === 'warning' ? 'Warning' : 'Failure'}
+            {item.status === 'good'
+              ? 'Good'
+              : item.status === 'warning'
+              ? 'Warning'
+              : 'Failure'}
           </Text>
         </Text>
       </View>
-
       <Ionicons name="chevron-forward" size={20} color="#aaa" />
     </TouchableOpacity>
   );
@@ -144,9 +159,7 @@ export default function HomeScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'HVASee' }} />
-
       <SafeAreaView style={styles.container}>
-
         <View style={styles.headerWrapper}>
           <View style={styles.statusContainer}>
             <Ionicons
@@ -161,19 +174,20 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <FlatList
-          data={systems}
-          keyExtractor={(item) => item.id}
-          renderItem={renderSystemItem}
-          contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10 }}
-        />
+        {loading ? (
+          <Text style={styles.loadingText}>Loading devices...</Text>
+        ) : (
+          <FlatList
+            data={devices}
+            keyExtractor={(item) => item.id}
+            renderItem={renderDeviceItem}
+            contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10 }}
+          />
+        )}
 
-
-        {/* CALVIN THIS IS THE CONNECT BUTTON*/}
         <TouchableOpacity style={styles.fab} onPress={() => router.push('/bleconnect')}>
           <Text style={styles.fabText}>Connect New Device</Text>
         </TouchableOpacity>
-
       </SafeAreaView>
     </>
   );
@@ -188,11 +202,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: '#ccc',
   },
-
   statusContainer: { alignItems: 'center', justifyContent: 'center' },
-
   statusText: { fontSize: 18, fontWeight: 'bold' },
-
+  loadingText: { fontSize: 16, textAlign: 'center', marginTop: 20 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -201,12 +213,10 @@ const styles = StyleSheet.create({
     padding: 12,
     marginVertical: 6,
   },
-
   cardLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
   cardTitle: { fontSize: 16, fontWeight: 'bold' },
-  cardInfo: { flex: 1, marginHorizontal: 8, alignItems: 'flex-start', paddingLeft: 30},
+  cardInfo: { flex: 1, marginHorizontal: 8, alignItems: 'flex-start', paddingLeft: 30 },
   cardInfoText: { fontSize: 14, color: '#333', textAlign: 'left' },
-
   fab: {
     position: 'absolute',
     right: 20,
@@ -218,13 +228,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-
   fabText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
   },
-
-
 });
