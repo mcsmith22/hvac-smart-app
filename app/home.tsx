@@ -103,7 +103,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     fetchDevices();
-    const intervalId = setInterval(fetchDevices, 10000);
+    const intervalId = setInterval(fetchDevices, 1000);
     return () => clearInterval(intervalId);
   }, []);
 
