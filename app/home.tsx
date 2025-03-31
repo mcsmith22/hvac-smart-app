@@ -117,8 +117,8 @@ export default function HomeScreen() {
       <View style={styles.cardLeft}>
         <Ionicons
           name="snow"
-          size={24}
-          color="#000"
+          size={28}
+          color="#87CEFA"
           style={{ marginRight: 8 }}
         />
         <Text style={styles.cardTitle}>{item.deviceId}</Text>
@@ -154,6 +154,17 @@ export default function HomeScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'HVASee' }} />
+
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.headerBar}>
+          <Text style={styles.headerText}>
+            <Text style={styles.headerBold}>HVA</Text>
+            <Text style={styles.headerItalic}>See</Text>
+          </Text>
+          <Text style={styles.headerHome}>Home</Text>
+        </View>
+      </SafeAreaView>
+
       <SafeAreaView style={styles.container}>
         <View style={styles.headerWrapper}>
           <View style={styles.statusContainer}>
@@ -189,39 +200,85 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 0,  
+  },
+  headerBar: {
+    backgroundColor: '#49aae6', 
+    paddingTop: 5, 
+    paddingBottom: 5,  
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 70,  
+  },
+  headerText: {
+    fontSize: 28, 
+    fontWeight: 'bold',
+    color: '#fff', 
+  },
+  headerBold: {
+    fontWeight: 'bold',
+  },
+  headerItalic: {
+    fontStyle: 'italic',
+  },
+  headerHome: {
+    fontSize: 14,  
+    color: '#fff',  
+    marginTop: 0, 
+  },
   container: { flex: 1, backgroundColor: '#fff' },
   headerWrapper: {
     backgroundColor: '#fff',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderBottomWidth: 0.5,
     borderBottomColor: '#ccc',
   },
-  statusContainer: { alignItems: 'center', justifyContent: 'center' },
+  statusContainer: { 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
   statusText: { fontSize: 18, fontWeight: 'bold' },
   loadingText: { fontSize: 16, textAlign: 'center', marginTop: 20 },
+
   card: {
     flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
     padding: 12,
     marginVertical: 6,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4, 
   },
   cardLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
-  cardTitle: { fontSize: 16, fontWeight: 'bold' },
+  cardTitle: { fontSize: 18, fontWeight: 'bold' },
   cardInfo: { flex: 1, marginHorizontal: 8, alignItems: 'flex-start', paddingLeft: 30 },
-  cardInfoText: { fontSize: 14, color: '#333', textAlign: 'left' },
+  cardInfoText: { 
+    padding: 2,
+    fontSize: 18, 
+    color: '#333', 
+    textAlign: 'left' 
+  },
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 30,
+    bottom: 40,
     backgroundColor: '#49aae6',
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4, 
   },
   fabText: {
     color: '#fff',
