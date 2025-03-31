@@ -39,11 +39,19 @@ export default function HomeScreen() {
   };
 
   
-  const deriveStatus = (color: string): SystemStatus => {
-    if (color.toLowerCase() === 'red') return 'failure';
-    if (color.toLowerCase() === 'yellow') return 'warning';
+  const deriveStatusFromFlashSequence = (flash: string | undefined): SystemStatus => {
+    if (!flash) return 'good'; // if flash_sequence is missing, default to "good"
+    const firstWord = flash.split(' ')[0].toLowerCase();
+    if (firstWord === 'warning:') return 'warning';
+    if (firstWord === 'failure:') return 'failure';
     return 'good';
   };
+
+  function convertToISO(dateStr: string): string {
+    const parts = dateStr.split('-');
+    if (parts.length !== 6) return dateStr; // fallback to original if not in expected format
+    return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
+  }
 
   const fetchDevices = async () => {
     try {
@@ -73,7 +81,7 @@ export default function HomeScreen() {
           devicesMap.set(device.deviceId, device);
         } else {
 
-          if (new Date(device.date_of_req) > new Date(existing.date_of_req)) {
+          if (new Date(convertToISO(device.date_of_req)) > new Date(convertToISO(existing.date_of_req))) {
             devicesMap.set(device.deviceId, device);
           }
         }
@@ -82,7 +90,7 @@ export default function HomeScreen() {
 
       const uniqueDevices = Array.from(devicesMap.values()).map((device) => ({
         ...device,
-        status: deriveStatus(device.color),
+        status: deriveStatusFromFlashSequence(device.flash_sequence),
       }));
       
       setDevices(uniqueDevices);
@@ -125,7 +133,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.cardInfo}>
-        <Text style={styles.cardInfoText}>Color: {item.color}</Text>
+        <Text style={styles.cardInfoText}>Unit Type: {item.unit_type}</Text>
         <Text style={styles.cardInfoText}>
           Status:{' '}
           <Text
