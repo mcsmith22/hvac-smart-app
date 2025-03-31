@@ -90,7 +90,7 @@ export default function DeviceInfoScreen() {
               <Text style={styles.value}>{deviceInfo.date_of_req}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.label}>Flash Sequence:</Text>
+              <Text style={styles.label}>Error Status:</Text>
               <Text style={styles.value}>{deviceInfo.flash_sequence}</Text>
             </View>
             <View style={styles.detailRow}>
