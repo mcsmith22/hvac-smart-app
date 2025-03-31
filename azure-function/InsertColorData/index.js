@@ -43,7 +43,7 @@ module.exports = async function (context, req) {
       date_of_req: req.body.date_of_req,
       deviceId: req.body.deviceId,
       color: req.body.color,
-      flash_sequence: errorDict[req.body.flash_sequence],
+      flash_sequence: errorDict[req.body.flash_sequence] || "NO ERROR",
       amp_measurement: req.body.amp_measurement,
       gas_value: req.body.gas_value,
       unit_type: req.body.unit_type,
