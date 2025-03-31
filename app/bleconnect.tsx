@@ -226,10 +226,20 @@ return (
     {showConnection && (
         <Text>{successfullyConnectedWifi}</Text>
     )}
+
+
     {/*Think I want to make this disappear when connection is made, and reappear when disconnected */}
-    <View style={styles.card}>
-        <Button title="Scan for Devices" onPress={scanDevices} />
-    </View>
+    {!connected && (
+                <View style={styles.card}>
+                    <Button title="Scan for Devices" onPress={scanDevices} />
+                </View>
+            )}
+
+    {connected && (
+        <View style={styles.card}>
+            <Button title="Scan for WiFi" onPress={handleScanNetworks}/>
+        </View>
+    )}
 
     {connected && (!foundNetworks) && (
         <View style={styles.card} >
@@ -248,16 +258,12 @@ return (
             value={wifiPassword}
             onChangeText={setWifiPassword}
         />
+        
         <Button title="Submit Credentials" onPress={handleSubmitCredentials} />
         
     </View>
     )}
 
-    {connected && (
-    <View style={styles.card}>
-        <Button title="Scan for WiFi" onPress={handleScanNetworks}/>
-    </View>
-    )}
 
     <View style={styles.disconnect}>
         <Button title="Disconnect" color="red" onPress={() => { bleManager.destroy(); }} />
