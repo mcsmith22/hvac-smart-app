@@ -280,9 +280,9 @@ return (
         )}
     />) : <Text selectionColor="green">Connected!</Text>}
     
-    
+    {/** wifi networks */}
     {foundNetworks && (
-    <View>
+    <View style={styles.wifiContainer}>
         {(!showPasswordInput) && (
             <FlatList
                 data={wifiNetworks}
@@ -381,7 +381,10 @@ deviceText: {
     marginVertical: 5,
 },
 wifiContainer: {
+    flex: 1,
     marginTop: 20,
+    marginBottom: 80,
+    paddingBottom: 10,
     width: '100%',
     alignItems: 'center',
 },
