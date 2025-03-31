@@ -11,10 +11,10 @@ module.exports = async function (context, req) {
   const container = client.database(databaseId).container(containerId);
 
   const errorDict = {
-    "short long long long": "LIMIT CIRCUIT LOCKOUT",
-    "short short long long long": "PRESSURE SWITCH DID NOT OPEN",
-    "short short short long long long": "LIMIT CIRCUIT FAULT",
-    "short long long": "BLOWER ON AFTER POWER UP",
+    "short long long long": "FAILURE: LIMIT CIRCUIT LOCKOUT",
+    "short short long long long": "WARNING: PRESSURE SWITCH DID NOT OPEN",
+    "short short short long long long": "FAILURE: LIMIT CIRCUIT FAULT",
+    "short long long": "WARNING: BLOWER ON AFTER POWER UP",
 
   };
 
