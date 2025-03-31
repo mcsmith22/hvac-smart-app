@@ -10,6 +10,14 @@ module.exports = async function (context, req) {
   const client = new CosmosClient({ endpoint, key });
   const container = client.database(databaseId).container(containerId);
 
+  const errorDict = {
+    "short long long long": "LIMIT CIRCUIT LOCKOUT",
+    "short short long long long": "PRESSURE SWITCH DID NOT OPEN",
+    "short short short long long long": "LIMIT CIRCUIT FAULT",
+    "short long long": "BLOWER ON AFTER POWER UP",
+
+  };
+
   try {
     if (
       !req.body ||
@@ -35,7 +43,7 @@ module.exports = async function (context, req) {
       date_of_req: req.body.date_of_req,
       deviceId: req.body.deviceId,
       color: req.body.color,
-      flash_sequence: req.body.flash_sequence,
+      flash_sequence: errorDict[req.body.flash_sequence],
       amp_measurement: req.body.amp_measurement,
       gas_value: req.body.gas_value,
       unit_type: req.body.unit_type,

@@ -20,6 +20,12 @@ export default function DeviceInfoScreen() {
   const [loading, setLoading] = useState(true);
   const auth = getAuth();
 
+  function convertToISO(dateStr: string): string {
+    const parts = dateStr.split('-'); 
+    if (parts.length !== 6) return '1970-01-01T00:00:00Z';
+    return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
+  }
+
   const fetchDeviceInfo = async () => {
     try {
       const user = auth.currentUser;
@@ -45,8 +51,14 @@ export default function DeviceInfoScreen() {
         setDeviceInfo(null);
       } else {
 
-        entriesForDevice.sort((a, b) => new Date(b.date_of_req).getTime() - new Date(a.date_of_req).getTime());
+        entriesForDevice.sort((a, b) => {
+          const dateA = new Date(convertToISO(a.date_of_req)).getTime();
+          const dateB = new Date(convertToISO(b.date_of_req)).getTime();
+          return dateB - dateA;
+        });
+
         setDeviceInfo(entriesForDevice[0]);
+
       }
     } catch (error) {
       console.error('Error fetching device info:', error);
@@ -89,7 +101,7 @@ export default function DeviceInfoScreen() {
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.label}>Gas Value:</Text>
-              <Text style={styles.value}>{deviceInfo.gas_value}</Text>
+              <Text style={[styles.value, { color: deviceInfo.gas_value > 2.0 ? '#39b54a' : '#ff3b30' }]}>{deviceInfo.gas_value}</Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.label}>Unit Type:</Text>
@@ -128,6 +140,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#333',
   },
+
   errorText: {
     color: 'red',
     textAlign: 'center',
