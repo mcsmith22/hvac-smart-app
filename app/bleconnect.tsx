@@ -5,101 +5,119 @@ import { Stack, router } from 'expo-router';
 import { Buffer } from 'buffer';
 import { scanNetworks } from './wificonnections';
 import Ionicons from "react-native-vector-icons/Ionicons";
-// import { disconnect } from 'process';
-
-export default function BLEConnect() {
-// const [connectedDevice, setDevice] = useState(null);
-const [devices, setDevices] = useState([]); // to keep track of the devices that we find
-const [wifiNetworks, setWifiNetworks] = useState([]); // same thing for wifi
-const bleManager = new BleManager();
-const [connected, setConnected] = useState(false);
-
-const [connectedDevice, setConnectedDevice] = useState(null);
-const [clearInputs, setClearInputs] = useState(false);
-const [foundNetworks, setFoundNetworks] = useState(false);
-
-const [successfullyConnectedWifi, setSuccessfullyConnectedWifi] = useState("");
-
-useEffect(() => {
-    console.log("wifi connected and changed value");
-    if (successfullyConnectedWifi.length > 1) {
-        setShowConnection(true);
-    }
-}, [successfullyConnectedWifi]);
-
-useEffect(() => {
-    console.log("wifiNetworks updated:", wifiNetworks);
-    // Perform any actions that depend on wifiNetworks here
-    if (wifiNetworks.length > 0) {
-        setFoundNetworks(true);
-        for (let i = 0; i < wifiNetworks.length; i++) {
-            let name = wifiNetworks[i]["ssid"];
-            console.log(name);
-        }
-    } 
-
-}, [wifiNetworks]);
+// import { disconnect } from 'process'
+import { getAuth } from 'firebase/auth';
 
 const wifiServiceUUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
 const wifiCharacteristicUUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
 
-const testing = [{"ssid":"Apartment Gr8 2.4_EXT","rssi":-38,"encryption":"Secured"},{"ssid":"Apartment Gr8 2.4","rssi":-44,"encryption":"Secured"},{"ssid":"Sonic-2024","rssi":-46,"encryption":"Secured"}];
+export default function BLEConnect() {
+    // const [connectedDevice, setDevice] = useState(null);
+    const [devices, setDevices] = useState([]); // to keep track of the devices that we find
+    const [wifiNetworks, setWifiNetworks] = useState([]); // same thing for wifi
+    const bleManager = new BleManager();
+    const [connected, setConnected] = useState(false);
 
-// Android permissions
-const requestPermissions = async () => {
-    if (Platform.OS === 'android') { //android needs these to allow for BLE usaeg
-        const granted = await PermissionsAndroid.requestMultiple([
-            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        ]);
-        //if the user doesnt accept all permissions, they cant use BLE 
-        if (granted['android.permission.ACCESS_FINE_LOCATION'] !== PermissionsAndroid.RESULTS.GRANTED || granted['android.permission.BLUETOOTH_SCAN'] !== PermissionsAndroid.RESULTS.GRANTED || granted['android.permission.BLUETOOTH_CONNECT'] !== PermissionsAndroid.RESULTS.GRANTED) {
-            console.warn('Bluetooth permissions not granted');
+    const [connectedDevice, setConnectedDevice] = useState(null);
+    const [clearInputs, setClearInputs] = useState(false);
+    const [foundNetworks, setFoundNetworks] = useState(false);
+
+    const [successfullyConnectedWifi, setSuccessfullyConnectedWifi] = useState("");
+
+    const [deviceName, setDeviceName] = useState(""); 
+    const [deviceInfoSent, setDeviceInfoSent] = useState(false); 
+
+    const auth = getAuth();
+
+    const [scanning, setScanning] = useState(false); 
+
+
+
+    // Android permissions
+    const requestPermissions = async () => {
+        if (Platform.OS === 'android') { //android needs these to allow for BLE usaeg
+            const granted = await PermissionsAndroid.requestMultiple([
+                PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+                PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+            ]);
+            //if the user doesnt accept all permissions, they cant use BLE 
+            if (granted['android.permission.ACCESS_FINE_LOCATION'] !== PermissionsAndroid.RESULTS.GRANTED || granted['android.permission.BLUETOOTH_SCAN'] !== PermissionsAndroid.RESULTS.GRANTED || granted['android.permission.BLUETOOTH_CONNECT'] !== PermissionsAndroid.RESULTS.GRANTED) {
+                console.warn('Bluetooth permissions not granted');
             }
-    }
-};
-
-useEffect(() => {
-    requestPermissions();
-    return () => {
-    bleManager.destroy(); // cleans up 
+        }
     };
-}, []);
 
-const scanDevices = () => {
-    setDevices([]); //empties previous scan
+    useEffect(() => {
+        requestPermissions();
+        return () => {
+            bleManager.destroy(); // cleans up 
+        };
+    }, []);
 
-    bleManager.startDeviceScan(null, null, (error, device) => {
-    if (error) {
-        console.warn('Problem scanning: ', error);
-        return; 
-    }
-    if (device && device.name) {
-        if (device.name === "HVASEE Sensor" || device.name === "ESP32-BLE-Device") {
-            // console.log(device)
-            // setourDevice(device)
-            setConnectedDevice(device)
-            connect(device)
-            bleManager.stopDeviceScan()
+    useEffect(() => {
+        console.log("wifi connected and changed value");
+        if (successfullyConnectedWifi.length > 1) {
+            setShowConnection(true);
         }
-        //this is to display other BLE devices in range, which we wont need but might want for testing
-        setDevices(seenDevices => {
-        const deviceAlreadyAdded = seenDevices.some( //check if device has been added to current devices
-            existingDevice => existingDevice.id === device.id
-        );
-        if (deviceAlreadyAdded === false) {
-            return (seenDevices.concat(device));
+    }, [successfullyConnectedWifi]);
+
+    useEffect(() => {
+        console.log("wifiNetworks updated:", wifiNetworks);
+        // Perform any actions that depend on wifiNetworks here
+        if (wifiNetworks.length > 0) {
+            setFoundNetworks(true);
+            for (let i = 0; i < wifiNetworks.length; i++) {
+                let name = wifiNetworks[i]["ssid"];
+                console.log(name);
+            }
+        } 
+
+    }, [wifiNetworks]);
+
+
+
+    const testing = [{"ssid":"Apartment Gr8 2.4_EXT","rssi":-38,"encryption":"Secured"},{"ssid":"Apartment Gr8 2.4","rssi":-44,"encryption":"Secured"},{"ssid":"Sonic-2024","rssi":-46,"encryption":"Secured"}];
+
+
+
+    const scanDevices = () => {
+        setScanning(true)
+        setDevices([]); //empties previous scan
+
+        bleManager.startDeviceScan(null, null, (error, device) => {
+        if (error) {
+            console.warn('Problem scanning: ', error);
+            setScanning(false);
+            return; 
         }
-        return seenDevices;
+        if (device && device.name) {
+            if (device.name === "HVASEE Sensor" || device.name === "ESP32-BLE-Device") {
+                // console.log(device)
+                // setourDevice(device)
+                setConnectedDevice(device)
+                connectToDevice(device)
+                bleManager.stopDeviceScan()
+                setScanning(false);
+            }
+            //this is to display other BLE devices in range, which we wont need but might want for testing
+            setDevices(seenDevices => {
+            const deviceAlreadyAdded = seenDevices.some( //check if device has been added to current devices
+                existingDevice => existingDevice.id === device.id
+            );
+            if (deviceAlreadyAdded === false) {
+                return (seenDevices.concat(device));
+            }
+            return seenDevices;
+            });
+        }
         });
-    }
-    });
 
-    setTimeout(() => {
-    bleManager.stopDeviceScan();
-    }, 10000); // scans for 10 seconds
-};
+        setTimeout(() => {
+            bleManager.stopDeviceScan();
+            setScanning(false);
+        }, 10000); // scans for 10 seconds
+    };
 
     const handleScanNetworks = async () => {
     // call for wifi scan from esp-32 chip
@@ -155,46 +173,76 @@ const connect = async (device) => {
                     setSuccessfullyConnectedWifi(decodedValue); // just so that it displays
                 }
 
+                }
             }
-        }
-        );
-        setConnected(true);
-    } catch (error) {
-        console.error('Error connecting to device:', error);
-    }
-
-
-};
-const handleSubmitCredentials = async () => {
-    console.log('WiFi SSID:', wifiSSID, 'Password:', wifiPassword);
-    // Combine SSID and password
-    const dataToSend = `${wifiSSID}:${wifiPassword}`;
-    console.log('Data to send:', dataToSend);
-
-    try {
-        // Compute the base64 string in a local variable
-        const computedBase64Data = Buffer.from(dataToSend, 'utf8').toString('base64');
-        console.log('Computed Base64 data:', computedBase64Data);
-
-        if (connectedDevice) {
-            try {
-            const result = await connectedDevice.writeCharacteristicWithResponseForService(
-                wifiServiceUUID,
-                wifiCharacteristicUUID,
-                computedBase64Data
             );
-            console.log('Data successfully written:', result);
-            } catch (error) {
-            console.error('Error writing credentials:', error);
-            }
-            setClearInputs(true); 
-        } else {
-            console.warn("No device connected!");
+            setConnected(true);
+        } catch (error) {
+            console.error('Error connecting to device:', error);
         }
-    } catch (error) {
-        console.log("line 183 in handlesubmitcredentials");
-    }
-};
+
+
+    };
+    const handleSubmitCredentials = async () => {
+        console.log('WiFi SSID:', wifiSSID, 'Password:', wifiPassword);
+        // Combine SSID and password
+        const dataToSend = `${wifiSSID}:${wifiPassword}`;
+        console.log('Data to send:', dataToSend);
+
+        try {
+            // Compute the base64 string in a local variable
+            const computedBase64Data = Buffer.from(dataToSend, 'utf8').toString('base64');
+            console.log('Computed Base64 data:', computedBase64Data);
+
+            if (connectedDevice) {
+                try {
+                const result = await connectedDevice.writeCharacteristicWithResponseForService(
+                    wifiServiceUUID,
+                    wifiCharacteristicUUID,
+                    computedBase64Data
+                );
+                console.log('Data successfully written:', result);
+                } catch (error) {
+                console.error('Error writing credentials:', error);
+                }
+                setClearInputs(true); 
+            } else {
+                console.warn("No device connected!");
+            }
+        } catch (error) {
+            console.log("line 183 in handlesubmitcredentials");
+        }
+    };
+
+    const handleSendDeviceInfo = async () => { 
+        const user = auth.currentUser; 
+        if (!user) { 
+          Alert.alert("Error", "No user signed in."); 
+          return; 
+        }
+        if (!deviceName.trim()) { 
+          Alert.alert("Error", "Please enter a device name."); 
+          return;
+        }
+        const userId = user.uid;
+        const dataToSend = `DEVICE:${deviceName}:${userId}`; 
+        const computedBase64Data = Buffer.from(dataToSend, 'utf8').toString('base64'); 
+        console.log("Sending device info:", { deviceName, userId, computedBase64Data }); 
+        try { 
+          const result = await connectedDevice.writeCharacteristicWithResponseForService( 
+            wifiServiceUUID, 
+            wifiCharacteristicUUID, 
+            computedBase64Data 
+          );
+          console.log("Device info sent successfully:", result); 
+          setDeviceInfoSent(true); 
+          Alert.alert("Success", "Device info sent successfully."); 
+          router.push('/home'); 
+        } catch (error) { 
+          console.error("Error sending device info:", error); 
+          Alert.alert("Error", "Failed to send device info.");
+        }
+      };
 // -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 const [wifiSSID, setWifiSSID] = useState('');
@@ -322,7 +370,7 @@ return (
     </>
 );
 }
-
+    
 const styles = StyleSheet.create({
 
   safeArea: {
