@@ -68,8 +68,10 @@ export default function DeviceInfoScreen() {
   };
 
   useEffect(() => {
-    fetchDeviceInfo();
-  }, [deviceId]);
+      fetchDeviceInfo();
+      const intervalId = setInterval(fetchDeviceInfo, 1000);
+      return () => clearInterval(intervalId);
+    }, []);
 
   return (
     <>
@@ -84,15 +86,11 @@ export default function DeviceInfoScreen() {
               <Text style={styles.value}>{deviceInfo.deviceId}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.label}>Color:</Text>
-              <Text style={styles.value}>{deviceInfo.color}</Text>
-            </View>
-            <View style={styles.detailRow}>
               <Text style={styles.label}>Date of Request:</Text>
               <Text style={styles.value}>{deviceInfo.date_of_req}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.label}>Flash Sequence:</Text>
+              <Text style={styles.label}>Error Status:</Text>
               <Text style={styles.value}>{deviceInfo.flash_sequence}</Text>
             </View>
             <View style={styles.detailRow}>
@@ -101,7 +99,7 @@ export default function DeviceInfoScreen() {
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.label}>Gas Value:</Text>
-              <Text style={[styles.value, { color: deviceInfo.gas_value > 2.0 ? '#39b54a' : '#ff3b30' }]}>{deviceInfo.gas_value}</Text>
+              <Text style={[styles.value, { color: deviceInfo.gas_value > 0.0 ? '#39b54a' : '#ff3b30' }]}>{deviceInfo.gas_value}</Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.label}>Unit Type:</Text>
