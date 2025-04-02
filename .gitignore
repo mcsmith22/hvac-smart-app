@@ -39,3 +39,4 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+Hardware-files/BLE_wifi_testing/arduino_secrets.h
