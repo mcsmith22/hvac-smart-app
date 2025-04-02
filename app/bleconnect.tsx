@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, Button, FlatList, Platform, PermissionsAndroid, TextInput } from 'react-native';
+import { SafeAreaView, View, Text, StyleSheet, Button, FlatList, Platform, PermissionsAndroid, TextInput, ActivityIndicator } from 'react-native';
 import { BleManager } from 'react-native-ble-plx';
 import { Stack, router } from 'expo-router';
 import { Buffer } from 'buffer';
@@ -67,6 +67,7 @@ export default function BLEConnect() {
         // Perform any actions that depend on wifiNetworks here
         if (wifiNetworks.length > 0) {
             setFoundNetworks(true);
+            setActivityWheel(false);
             for (let i = 0; i < wifiNetworks.length; i++) {
                 let name = wifiNetworks[i]["ssid"];
                 console.log(name);
@@ -96,7 +97,7 @@ export default function BLEConnect() {
                 // console.log(device)
                 // setourDevice(device)
                 setConnectedDevice(device)
-                connectToDevice(device)
+                connect(device)
                 bleManager.stopDeviceScan()
                 setScanning(false);
             }
@@ -120,6 +121,7 @@ export default function BLEConnect() {
     };
 
     const handleScanNetworks = async () => {
+        setActivityWheel(true);
     // call for wifi scan from esp-32 chip
     // display all of the results from the scan wih "connect" buttons next to them
     //clicking this button makes you input the pswd
@@ -217,43 +219,43 @@ const connect = async (device) => {
     const handleSendDeviceInfo = async () => { 
         const user = auth.currentUser; 
         if (!user) { 
-          Alert.alert("Error", "No user signed in."); 
-          return; 
+        Alert.alert("Error", "No user signed in."); 
+        return; 
         }
         if (!deviceName.trim()) { 
-          Alert.alert("Error", "Please enter a device name."); 
-          return;
+        Alert.alert("Error", "Please enter a device name."); 
+        return;
         }
         const userId = user.uid;
         const dataToSend = `DEVICE:${deviceName}:${userId}`; 
         const computedBase64Data = Buffer.from(dataToSend, 'utf8').toString('base64'); 
         console.log("Sending device info:", { deviceName, userId, computedBase64Data }); 
         try { 
-          const result = await connectedDevice.writeCharacteristicWithResponseForService( 
+        const result = await connectedDevice.writeCharacteristicWithResponseForService( 
             wifiServiceUUID, 
             wifiCharacteristicUUID, 
             computedBase64Data 
-          );
-          console.log("Device info sent successfully:", result); 
-          setDeviceInfoSent(true); 
-          Alert.alert("Success", "Device info sent successfully."); 
-          router.push('/home'); 
+        );
+        console.log("Device info sent successfully:", result); 
+        setDeviceInfoSent(true); 
+        Alert.alert("Success", "Device info sent successfully."); 
+        router.push('/home'); 
         } catch (error) { 
-          console.error("Error sending device info:", error); 
-          Alert.alert("Error", "Failed to send device info.");
+        console.error("Error sending device info:", error); 
+        Alert.alert("Error", "Failed to send device info.");
         }
-      };
+    };
 // -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+const [activityWheel, setActivityWheel] = useState(false);
 const [wifiSSID, setWifiSSID] = useState('');
 const [wifiPassword, setWifiPassword] = useState('');
 const [showPasswordInput, setShowPasswordInput] = useState(false);
 const [showConnection, setShowConnection] = useState(false);
 return (
     <>
-          <Stack.Screen options={{ title: 'Login' }} />
+        <Stack.Screen options={{ title: 'Login' }} />
     
-          <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={styles.safeArea}>
             <View style={styles.headerBar}>
             <Ionicons 
                         name="arrow-back"  
@@ -262,13 +264,13 @@ return (
                         onPress={() => router.back()} 
                         style={styles.backButton} 
                     />
-              <Text style={styles.headerText}>
+            <Text style={styles.headerText}>
                 <Text style={styles.headerBold}>HVA</Text>
                 <Text style={styles.headerItalic}>See</Text>
-              </Text>
-              <Text style={styles.headerHome}>Connect New Device</Text>
+            </Text>
+            <Text style={styles.headerHome}>Connect New Device</Text>
             </View>
-          </SafeAreaView>
+        </SafeAreaView>
 
     <View style={styles.container}>
     {showConnection && (
@@ -286,6 +288,7 @@ return (
     {connected && (!foundNetworks) && (
         <View style={styles.card}>
             <Button title="Scan for WiFi" onPress={handleScanNetworks}/>
+            {activityWheel && <ActivityIndicator size="small" color="#49aae6" />} 
         </View>
     )}
 
@@ -307,7 +310,7 @@ return (
             onChangeText={setWifiPassword}
         />
         
-        <Button title="Submit Credentials" onPress={handleSubmitCredentials} />
+        <Button title="Submit Password" onPress={handleSubmitCredentials} />
         
     </View>
     )}
@@ -352,6 +355,7 @@ return (
                 )}
             />
         )}
+        {/* This one below is the reason the input of the password looks so ass */}
         {showPasswordInput && (
             <View>
                 <TextInput
@@ -373,46 +377,46 @@ return (
     
 const styles = StyleSheet.create({
 
-  safeArea: {
+safeArea: {
     flex: 0,  
-  },
-  headerBar: {
+},
+headerBar: {
     backgroundColor: '#49aae6', 
     paddingTop: 5, 
     paddingBottom: 5,  
     justifyContent: 'center',
     alignItems: 'center',
     height: 70,  
-  },
-  headerText: {
+},
+headerText: {
     fontSize: 28, 
     fontWeight: 'bold',
     color: '#fff', 
-  },
-  headerBold: {
+},
+headerBold: {
     fontWeight: 'bold',
-  },
-  headerItalic: {
+},
+headerItalic: {
     fontStyle: 'italic',
-  },
-  headerHome: {
+},
+headerHome: {
     fontSize: 14,  
     color: '#fff',  
     marginTop: 0, 
-  },
-  headerWrapper: {
+},
+headerWrapper: {
     backgroundColor: '#fff',
     alignItems: 'center',
     paddingVertical: 18,
     borderBottomWidth: 0.5,
     borderBottomColor: '#ccc',
-  },
-  backButton: {
+},
+backButton: {
     position: 'absolute',
     top: 20, 
     left: 10,
     padding: 10,
-  },
+},
 container: {
     flex: 1,
     padding: 20,
@@ -470,14 +474,14 @@ card: {
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4, 
-  },
-  disconnect: {
+},
+disconnect: {
     position: 'absolute',
     bottom: 40,
     width: '100%',       
     alignItems: 'center', 
 
-  }
+}
 });
 
 

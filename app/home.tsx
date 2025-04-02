@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
@@ -14,18 +15,7 @@ import { getAuth } from 'firebase/auth';
 type SystemStatus = 'good' | 'warning' | 'failure';
 
 interface DeviceData {
-
-interface DeviceData {
   id: string;
-  deviceId: string;
-  color: string;
-  date_of_req: string;
-  flash_sequence: string;
-  amp_measurement: number;
-  gas_value: number;
-  unit_type: string;
-  userId: string;
-  status?: SystemStatus;
   deviceId: string;
   color: string;
   date_of_req: string;
@@ -126,22 +116,13 @@ export default function HomeScreen() {
       overallStatus = 'warning';
     }
   });
-  });
 
   const renderDeviceItem = ({ item }: { item: DeviceData }) => (
     <TouchableOpacity
       style={styles.card}
       onPress={() => router.push(`/device/${item.deviceId}`)}
-      onPress={() => router.push(`/device/${item.deviceId}`)}
     >
       <View style={styles.cardLeft}>
-        <Ionicons
-          name="snow"
-          size={24}
-          color="#000"
-          style={{ marginRight: 8 }}
-        />
-        <Text style={styles.cardTitle}>{item.deviceId}</Text>
         <Ionicons
           name="snow"
           size={24}
@@ -153,7 +134,6 @@ export default function HomeScreen() {
 
       <View style={styles.cardInfo}>
         <Text style={styles.cardInfoText}>Unit Type: {item.unit_type}</Text>
-        <Text style={styles.cardInfoText}>Unit Type: {item.unit_type}</Text>
         <Text style={styles.cardInfoText}>
           Status:{' '}
           <Text
@@ -161,20 +141,12 @@ export default function HomeScreen() {
               color:
                 item.status === 'good'
                   ? statusInfo.good.color
-                  ? statusInfo.good.color
                   : item.status === 'warning'
-                  ? statusInfo.warning.color
-                  : statusInfo.failure.color,
                   ? statusInfo.warning.color
                   : statusInfo.failure.color,
               fontWeight: 'bold',
             }}
           >
-            {item.status === 'good'
-              ? 'Good'
-              : item.status === 'warning'
-              ? 'Warning'
-              : 'Failure'}
             {item.status === 'good'
               ? 'Good'
               : item.status === 'warning'
@@ -215,16 +187,6 @@ export default function HomeScreen() {
             contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10 }}
           />
         )}
-        {loading ? (
-          <Text style={styles.loadingText}>Loading devices...</Text>
-        ) : (
-          <FlatList
-            data={devices}
-            keyExtractor={(item) => item.id}
-            renderItem={renderDeviceItem}
-            contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10 }}
-          />
-        )}
 
         <TouchableOpacity style={styles.fab} onPress={() => router.push('/bleconnect')}>
           <Text style={styles.fabText}>Connect New Device</Text>
@@ -246,7 +208,6 @@ const styles = StyleSheet.create({
   statusContainer: { alignItems: 'center', justifyContent: 'center' },
   statusText: { fontSize: 18, fontWeight: 'bold' },
   loadingText: { fontSize: 16, textAlign: 'center', marginTop: 20 },
-  loadingText: { fontSize: 16, textAlign: 'center', marginTop: 20 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -257,7 +218,6 @@ const styles = StyleSheet.create({
   },
   cardLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
   cardTitle: { fontSize: 16, fontWeight: 'bold' },
-  cardInfo: { flex: 1, marginHorizontal: 8, alignItems: 'flex-start', paddingLeft: 30 },
   cardInfo: { flex: 1, marginHorizontal: 8, alignItems: 'flex-start', paddingLeft: 30 },
   cardInfoText: { fontSize: 14, color: '#333', textAlign: 'left' },
   fab: {
