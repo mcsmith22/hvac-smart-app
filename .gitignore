@@ -1,5 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+config.py
+*.arduino_secrets.h
+
 # dependencies
 node_modules/
 
@@ -36,3 +39,4 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+Hardware-files/BLE_wifi_testing/arduino_secrets.h
