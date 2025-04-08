@@ -125,7 +125,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.cardInfo}>
-        <Text style={styles.cardInfoText}>Color: {item.color}</Text>
+        {/* <Text style={styles.cardInfoText}>Color: {item.color}</Text> */}
         <Text style={styles.cardInfoText}>
           Status:{' '}
           <Text

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, Button, FlatList, Platform, PermissionsAndroid, TextInput } from 'react-native';
 import { BleManager } from 'react-native-ble-plx';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useRouter} from 'expo-router';
 import { Buffer } from 'buffer';
 import { scanNetworks } from './wificonnections';
 import Ionicons from "react-native-vector-icons/Ionicons";
