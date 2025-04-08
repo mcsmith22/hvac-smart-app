@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router'; 
-import { getAuth } from 'firebase/auth';
+import { auth } from '../../.expo/config/firebase';
 
 interface DeviceData {
   deviceId: string;
@@ -18,7 +18,6 @@ export default function DeviceInfoScreen() {
   const { deviceId } = useLocalSearchParams();
   const [deviceInfo, setDeviceInfo] = useState<DeviceData | null>(null);
   const [loading, setLoading] = useState(true);
-  const auth = getAuth();
 
   function convertToISO(dateStr: string): string {
     const parts = dateStr.split('-'); 
