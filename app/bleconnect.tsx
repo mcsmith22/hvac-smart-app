@@ -277,6 +277,7 @@ export default function BLEConnect() {
         Alert.alert("Error", "No user signed in.");
         return;
       }
+      console.log("About to try and add device to user (user.uuid, deviceId, deviceName, deviceBrand) (", user.uid, ",", String(connectedDevice.id), "," , deviceName, ",", deviceBrand)
       await addDeviceForUser(user.uid, connectedDevice.id, deviceName, deviceBrand);
       Alert.alert("Success", "Device connected successfully!");
       router.push('/home');
