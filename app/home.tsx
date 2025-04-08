@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { getAuth } from 'firebase/auth';
+import { auth } from '../.expo/config/firebase';
+
 
 type SystemStatus = 'good' | 'warning' | 'failure';
 
@@ -55,7 +56,6 @@ export default function HomeScreen() {
 
   const fetchDevices = async () => {
     try {
-      const auth = getAuth();
       const user = auth.currentUser;
       if (!user) {
         console.log("No user signed in.");
