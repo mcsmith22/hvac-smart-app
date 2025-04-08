@@ -1,145 +1,306 @@
-// Able to connect to chip thru phone and input wifi
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include <time.h>
+#include <Adafruit_ADS1X15.h>
+#include <Adafruit_NeoPixel.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-#include <BLE2902.h> // might be able to comment out
-#include <WiFi.h>
-#include <Adafruit_NeoPixel.h>
+#include <BLE2902.h>
+#include <ble_callbacks.h>
+#include <arduino_secrets.h>
+
+// ----- WiFi Credentials -----
+struct WifiCredential {
+  const char* ssid;
+  const char* password;
+};
+WifiCredential wifis[] = {
+  {"Austin’s iPhone 16", "jifspoon"},
+  {" Unit1507", "Unit1507@2024"}
+};
+
+const int wifiCount = sizeof(wifis) / sizeof(wifis[0]);
+
+// ----- Function Declarations -----
+WifiCredential* scanWifi();
+String getFormattedDate();
+String getCategoryInfo();
+String classifyColor(uint8_t r, uint8_t g, uint8_t b);
+uint8_t scaleTo8bit(uint16_t value, uint16_t max_value = 65535);
+String runColorDetection(uint8_t addr);
+String runFlashDetection(uint8_t addr);
+float runGasDetection();
+float runAmpDetection();
+uint8_t setupWhenWifiConnected();
+
+// Define statements
+#define WIFI_CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8" // we can change this with any generated verion 4 uuid (randomly geneerated)
 #define LED_PIN 8       
 #define NUM_LEDS 1      
 
+// RGB LED Control Setup
 Adafruit_NeoPixel rgb_led(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-// Define a UUID for the writable characteristic (choose one and use the same one in the app)
-#define WIFI_CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8" // we can change this with any generated verion 4 uuid (randomly geneerated)
+// Amp Sesnor Setup
+Adafruit_ADS1115 ads;
+const float FACTOR = 100; //20A/1V from the CT
+const float multiplier = 0.00005;
 
+// Gas Sensor Setup
+const float GAS_THRESHOLD = 0.0;  
+float R0 = 0.71; // came from calibraion of MQ9
+
+// Wi-Fi Connection Setup
 bool deviceConnected = false;
 String wifiNetworks = "";
 
-//is called whenever device connects/disconnects
-class MyServerCallbacks: public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) override {
-    deviceConnected = true;
-    Serial.println("Client connected via BLE");
-    wifiNetworks = scanForNetworks();
+// RGB Sensor Setup
+uint8_t sensorAddr;
 
-    rgb_led.setPixelColor(0, rgb_led.Color(0, 50, 0)); // Green
-    rgb_led.show();
+struct ColorData {
+  uint16_t r;
+  uint16_t g;
+  uint16_t b;
+};
 
+String getFormattedDate() {
+  time_t now;
+  struct tm timeinfo;
+  time(&now);
+  gmtime_r(&now, &timeinfo);
+  char buf[30];
+  // Format: "YYYY-MM-DD-HH-MM-SS"
+  sprintf(buf, "%04d-%02d-%02d-%02d-%02d-%02d",
+          timeinfo.tm_year + 1900,
+          timeinfo.tm_mon + 1,
+          timeinfo.tm_mday,
+          timeinfo.tm_hour,
+          timeinfo.tm_min,
+          timeinfo.tm_sec);
+  return String(buf);
+}
+
+// ----- Color Classification & Scaling -----
+String classifyColor(uint8_t r, uint8_t g, uint8_t b) {
+  if ((int)r - ((int)g + (int)b) > 50) {
+    return "Red";
+  } else if ((int)g - ((int)r + (int)b) > 50) {
+    return "Green";
+  } else if (abs(r - g) < 60 && r > 100 && g > 100) {
+    return "Yellow";
   }
-  void onDisconnect(BLEServer* pServer) override {
-    deviceConnected = false;
-    Serial.println("Client disconnected");
-    rgb_led.setPixelColor(0, rgb_led.Color(10, 0, 0));
-    rgb_led.show();
-    setup();   // get rid of this when I'm done testing, wont be able to connect to wifi, bc I will disconnect when connecting to wifi ---------- IMPORTANT ---------------- IMPORTANT ----------------------
-  }
-  String scanForNetworks() {
-    WiFi.mode(WIFI_STA);  // Set Wi-Fi to station mode
-    WiFi.disconnect();    // Disconnect from any previous connections
-    delay(100);
-    Serial.println("------------------------------------------------------------------------------");
+  return "Unknown";
+}
 
-    Serial.println("Scanning for Wi-Fi networks...");
-    int numNetworks = WiFi.scanNetworks();
-    String jsonResult = "[";
-    if (numNetworks == 0) {
-      Serial.println("No networks found.");
-      jsonResult += "{\"error\":\"No networks found\"}";
+uint8_t scaleTo8bit(uint16_t value, uint16_t max_value) {
+  return (uint8_t)((((float)value) / max_value) * 255.0);
+}
+
+// ----- Sensor Processing Functions -----
+String runColorDetection(uint8_t addr) {
+  uint16_t r_total = 0, g_total = 0, b_total = 0;
+  // Take three samples and average them
+  for (int i = 0; i < 3; i++) {
+    uint8_t raw_data[6];
+    // Request 6 bytes from register 0x09
+    Wire.beginTransmission(addr);
+    Wire.write(0x09);
+    Wire.endTransmission();
+    Wire.requestFrom(addr, (uint8_t)6);
+    int index = 0;
+    while (Wire.available() && index < 6) {
+      raw_data[index++] = Wire.read();
+    }
+    
+    uint16_t g_value = ((uint16_t)raw_data[1] << 8) | raw_data[0];
+    uint16_t r_value = ((uint16_t)raw_data[3] << 8) | raw_data[2];
+    uint16_t b_value = ((uint16_t)raw_data[5] << 8) | raw_data[4];
+    
+    uint8_t r_8bit = scaleTo8bit(r_value);
+    uint8_t g_8bit = scaleTo8bit(g_value);
+    uint8_t b_8bit = scaleTo8bit(b_value);
+    
+    r_total += r_8bit;
+    g_total += g_8bit;
+    b_total += b_8bit;
+  }
+  uint8_t r_avg = r_total / 3;
+  uint8_t g_avg = g_total / 3;
+  uint8_t b_avg = b_total / 3;
+  
+  char hex_color[8];
+  sprintf(hex_color, "#%02X%02X%02X", r_avg, g_avg, b_avg);
+  
+  String color_name = classifyColor(r_avg, g_avg, b_avg);
+  
+  Serial.print("8-bit RGB: ");
+  Serial.print(r_avg);
+  Serial.print(" ");
+  Serial.print(g_avg);
+  Serial.print(" ");
+  Serial.println(b_avg);
+  Serial.print("Color Name: ");
+  Serial.println(color_name);
+
+  return color_name;
+}
+
+// (Optional) Flash detection function, similar in style
+String runFlashDetection(uint8_t addr) {
+  int on_for = 0;
+  String flash_sequence = "";
+  while (true) {
+    uint8_t raw_data[6];
+    Wire.beginTransmission(addr);
+    Wire.write(0x09);
+    Wire.endTransmission();
+    Wire.requestFrom(addr, (uint8_t)6);
+    int index = 0;
+    while (Wire.available() && index < 6) {
+      raw_data[index++] = Wire.read();
+    }
+    uint16_t g_value = ((uint16_t)raw_data[1] << 8) | raw_data[0];
+    uint16_t r_value = ((uint16_t)raw_data[3] << 8) | raw_data[2];
+    uint16_t b_value = ((uint16_t)raw_data[5] << 8) | raw_data[4];
+    uint8_t r_8bit = scaleTo8bit(r_value);
+    uint8_t g_8bit = scaleTo8bit(g_value);
+    uint8_t b_8bit = scaleTo8bit(b_value);
+    
+    if (r_8bit > 30 && g_8bit > 30 && b_8bit > 30) {
+      on_for++;
     } else {
-        for (int i = 0; i < 10; i++) {
-          jsonResult += "{\"ssid\":\"" + WiFi.SSID(i) + "\",";
-          jsonResult += "\"encryption\":\"" + String(WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "Open" : "Secured") + "\"}";
-          if (i < 10 - 1) {
-            jsonResult += ",";
+      if (on_for > 0) {
+        if (on_for > 10) {
+          if (flash_sequence.length() > 0) {
+            flash_sequence += " long";
+          }
+        } else {
+          if (flash_sequence.endsWith("short")) {
+            flash_sequence += " short";
+          } else {
+            // Serial.println("Short flash detected");
+            if (flash_sequence.length() > 0) {
+              Serial.println(flash_sequence);
+              return flash_sequence;
+            }
+
+            flash_sequence = "short";
           }
         }
-    }
-    jsonResult += "]";
-    Serial.println("Scan results:");
-    Serial.println(jsonResult.c_str());
-    return jsonResult;
-  }
-};
-
-// Custom BLE Characteristic Callbacks for the writable characteristic
-class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) override {
-    Serial.println("Made it to the callback");
-    String valueStr = pCharacteristic->getValue();
-    std::string value(valueStr.c_str());
-
-    if (value.length() > 0) {
-      Serial.print("Received scannn");
-      Serial.println(value.c_str());
-      String inputStr = String(value.c_str());
-      Serial.println(inputStr);
-      int colonIndex = inputStr.indexOf(':');
-
-      if (inputStr == "SCANNN") {
-        Serial.print("This should be setting the notification: ");
-        Serial.println(wifiNetworks);
-        
-        pCharacteristic->setValue(wifiNetworks.c_str());
-        delay(100);
-        Serial.print("*******Value of pcharacteristic******:");
-        Serial.println(pCharacteristic->getValue());
-        delay(100);
-        pCharacteristic->notify();
-
-
-      } else if (colonIndex != -1) {
-        // Extract the SSID and password using substring
-          String ssid = inputStr.substring(0, colonIndex);
-          String pswd = inputStr.substring(colonIndex + 1);
-
-          WiFi.mode(WIFI_STA);
-          WiFi.begin(ssid, pswd);
-          delay(200);
-          int counter = 0;
-          while (WiFi.status() != WL_CONNECTED) {
-            if (counter < 4) { // arbitrary limit to give enough time before deciding its not going to connect
-                break; // probably wont cponnect
-            } else {
-            Serial.println(".");
-            counter += 1;
-            delay(400);
-            }
-          }
-          String send = "";
-          if (WiFi.status() == WL_CONNECTED) {
-            rgb_led.setPixelColor(0, rgb_led.Color(40, 40, 100));
-            send = "Connected to Network: " + ssid;
-          } else {
-            rgb_led.setPixelColor(0, rgb_led.Color(80, 0, 80));
-            send = "WRONG PASSWORD FOR: " + ssid;
-          }
-          
-          rgb_led.show();
-          
-          Serial.print("send :");
-          Serial.println(send);
-          pCharacteristic->setValue(send.c_str());
-          delay(300);
-          // Serial.print("Wifi connected, IP is ");
-          // Serial.println(WiFi.localIP());
-          Serial.println("Disconnecting from BLE...");
-          // add functionality to disconnect from bleutooth
-          Serial.println(pCharacteristic->getValue());
-          pCharacteristic->notify();
-      } else {
-        Serial.println("NOPEEE");
+        on_for = 0;
       }
-    } else {
-      Serial.println("blorbgorbabor");
     }
+    delay(50);
   }
-};
+}
 
+float runAmpDetection() {
+  float voltage;
+  float current;
+  float sum = 0;
+  long time_check = millis();
+  int counter = 0;
+
+  while (millis() - time_check < 1000)
+  {
+    // voltage = ads.readADC_Differential_0_1() * multiplier;
+    voltage = analogRead(1) * multiplier;
+    current = voltage * FACTOR;
+    //current /= 1000.0;
+
+    sum += sq(current);
+    counter = counter + 1;
+  }
+
+  current = sqrt(sum / counter);
+  return (current);
+  // return 0.0;
+}
+
+float runGasDetection() {
+  // Read sensor value and compute voltage
+  int sensorValue = analogRead(0); // sensorpin is set to 0
+  float sensor_volt = (sensorValue / 1024.0) * 5.0;
+  
+  // Calculate the sensor resistance in gas (RS_gas) using the voltage divider formula
+  // Note: This assumes a 5V supply and a properly chosen load resistor.
+  float RS_gas = (5.0 - sensor_volt) / sensor_volt;  
+  // Calculate the ratio of RS_gas to the calibrated baseline R0
+  float ratio = RS_gas / R0;  
+  
+  // Print sensor details
+  Serial.print("Sensor Voltage = ");
+  Serial.print(sensor_volt);
+  Serial.println(" V");
+  Serial.print("RS_gas = ");
+  Serial.println(RS_gas);
+  Serial.print("RS_gas / R0 = ");
+  Serial.println(ratio);
+  Serial.println();
+  return ratio; // if this is below 0 we want to return that theres a dangerous amount of C0
+  // Compare the ratio against the threshold.
+  // If the ratio exceeds the threshold, turn on the LED to signal a dangerous condition.
+  if (ratio < GAS_THRESHOLD) {
+    Serial.println("ALARM: Gas concentration high! ratio: ");
+    Serial.print(ratio);
+  } else {
+
+    Serial.print("u all good bro, (ratio, threshhold) = (");
+    Serial.print(ratio);
+    Serial.print(", ");
+    Serial.print(GAS_THRESHOLD);
+    Serial.println(")");
+  }
+}
+
+uint8_t setupWhenWifiConnected() { // mostly just the setup for sensor code to do once wifi connection has been establoished, just the stuff I want to run once instead of loop
+  // ads.setGain(GAIN_FOUR); // +/- 1.024V 1bit = 0.5mV for Matthew's sensor, this conflicts with austin's pin
+  // ads.begin(); // for the current sensor connected to the I2C bus
+  // Wire.begin(); // for the gas sensor connected to pin 0
+  rgb_led.setPixelColor(0, rgb_led.Color(0, 0, 0));
+  rgb_led.show();
+  Wire.begin(6, 7); // for the rgb sensors conenctec to pins 6 and 7
+  // Configure time using NTP
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  time_t now = time(nullptr);
+  while (now < 100000) {
+    delay(1000);
+    now = time(nullptr);
+  }
+  Serial.println("Time synchronized");
+    // Scan for I2C devices by iterating over possible addresses
+  Serial.println("Scanning I2C devices...");
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    uint8_t result = Wire.endTransmission();
+    if (result != 2) {
+      Serial.print("I2C device found at address 0x");
+      Serial.println(a, HEX);
+      sensorAddr = a;
+      break;
+    }
+    // Serial.println("End transmission return: " + result);
+  }
+  if (sensorAddr == 0) {
+    Serial.println("No I2C devices found.");
+    return 0;
+  }
+
+  // Set sensor register to enable RGB reading (write 0x05 to register 0x01)
+  Wire.beginTransmission(sensorAddr);
+  Wire.write(0x01);
+  Wire.write(0x05);
+  Wire.endTransmission();
+
+  return sensorAddr;
+}
+
+// ----- Setup & Main Loop -----
 void setup() {
   Serial.begin(115200);
-  delay(5000);
-  Serial.println("-------------------setup workedd------------------------");
+  Serial.println("-------------------Setup Done------------------------");
   
   rgb_led.begin();
   rgb_led.setPixelColor(0, rgb_led.Color(45, 32, 0)); // initial yellow
@@ -147,8 +308,9 @@ void setup() {
   Serial.println("setting up  ble");
   BLEDevice::init("HVASEE Sensor"); // Set device name
   
-  // Create a BLE server and set callbacks for connection events
+  // Create BLE server and set callbacks for connection events
   BLEServer *pServer = BLEDevice::createServer();
+
   pServer->setCallbacks(new MyServerCallbacks());
   
   //reate a BLE service
@@ -173,140 +335,50 @@ void setup() {
   BLEDevice::startAdvertising();
   
   Serial.println("BLE advertising started. Waiting for a client to connect...");
-}
 
+  // setupWhenWifiConnected();
+}
+bool alreadySetupAfterWifiConnect = false; // This is honestly fucking stupid but its how im making sure setupWhenWifiConnected() is only called once
 void loop() {
-  delay(100);
-  // make it so if a wifi stored it tries to continuously connect 
+  if (getSetupWhenWifiConnected() == true && alreadySetupAfterWifiConnect == false) {
+    sensorAddr = setupWhenWifiConnected();
+    alreadySetupAfterWifiConnect = true;
+    Serial.println("BOOOOOM BOOOOOOM BOOOOM BOOMMMMM");
+  }
+  // Start the color detection loop (this function runs indefinitely)
+  if (WiFi.status() == WL_CONNECTED && sensorAddr != 0) { 
+    Serial.println("Sensor found at: " + sensorAddr);
+    String flashSequence = runFlashDetection(sensorAddr);
+    float gasValue = runGasDetection();
+    float ampMeasurement = runAmpDetection();
+    String colorName = runColorDetection(sensorAddr);
+
+    String formattedDate = getFormattedDate();
+
+    HTTPClient http;
+    http.begin(FUNCTION_URL);
+    http.addHeader("Content-Type", "application/json");
+    String body = "{\"id\":\"testArduino-" + formattedDate + "\", \"date_of_req\": \"" + formattedDate +
+                  "\", \"deviceId\": \"testArduino\", \"color\": \"" + colorName + "\", \"flash_sequence\": \"" + flashSequence +
+                  "\", \"amp_measurement\": \"" + ampMeasurement + "\", \"gas_value\": \"" + gasValue + "\", \"unit_type\": \"carrier\", \"userId\": \"fZUfNhLtujW7JzJPcS8UGCZt9gs2\"}";
+    Serial.println("Body: " + body);
+    
+    int httpResponseCode = http.POST(body);
+    Serial.print("Status: ");
+    Serial.println(httpResponseCode);
+    if (httpResponseCode > 0) {
+      String response = http.getString();
+      Serial.println("Response: " + response);
+    } else {
+      Serial.println("HTTP request error");
+    }
+    http.end();
+
+    delay(5000);
+    // }
+  } else if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("Sensor not found");
+    delay(500);
+  }
+
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // For Austins chip
-// // Able to connect to chip thru phone and input wifi
-// #include <BLEDevice.h>
-// #include <BLEServer.h>
-// #include <BLEUtils.h>
-// #include <BLE2902.h> // when commented out: Sketch uses 1750779 bytes (89%) of program storage space. Maximum is 1966080 bytes.
-// #include <WiFi.h>
-
-
-// // Define a UUID for the writable characteristic (choose one and use it in the app)
-// #define WIFI_CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8" // we can change this with any generated verion 4 uuid (randomly geneerated)
-
-// bool deviceConnected = false;
-
-// //is called whenever device connects/disconnects
-// class MyServerCallbacks: public BLEServerCallbacks {
-//   void onConnect(BLEServer* pServer) override {
-//     deviceConnected = true;
-//     Serial.println("Client connected via BLE");
-//   }
-  
-//   void onDisconnect(BLEServer* pServer) override {
-//     deviceConnected = false;
-//     Serial.println("Client disconnected");
-//   }
-// };
-
-// // Custom BLE Characteristic Callbacks for the writable characteristic
-// class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
-
-//   void onWrite(BLECharacteristic *pCharacteristic) override {
-//     // std::string value = pCharacteristic->getValue();
-//     String valueStr = pCharacteristic->getValue();
-//     std::string value(valueStr.c_str());
-//     if (value.length() > 0) {
-//       Serial.print("Received WiFi data: ");
-//       Serial.println(value.c_str());
-
-//       String inputStr = String(value.c_str());
-//       int colonIndex = inputStr.indexOf(':');
-//       if (colonIndex != -1) {
-//         // Extract the SSID and password using substring
-//         String ssid = inputStr.substring(0, colonIndex);
-//         String pswd = inputStr.substring(colonIndex + 1);
-        
-//         // Serial.print("SSID: ");
-//         // Serial.println(ssid);
-//         // Serial.print("Password: ");
-//         // Serial.println(pswd);
-//         //NOW TRY WIFI :):):)
-//         WiFi.mode(WIFI_STA);
-//         WiFi.begin(ssid, pswd);
-//         while (WiFi.status() != WL_CONNECTED) {
-//           Serial.print(".");
-//           delay(1000);
-//         }
-//         delay(1000);
-//         delay(1000);
-//         Serial.print("Wifi connected, IP is ");
-//         Serial.println(WiFi.localIP());
-//         Serial.println("Disconnecting from BLE...");
-
-//       } else {
-//         Serial.println("Delimiter ':' not found!");
-//       }
-//       // Here, you could parse the value into SSID and password
-//     } else {
-//       Serial.println("wifi data was blank");
-//     }
-//   }
-// };
-
-// void setup() {
-//   Serial.begin(115200);
-//   delay(10000);
-//   Serial.println("-------------------setup workedd------------------------");
-  
-//   Serial.println("setting up  ble");
-//   BLEDevice::init("HVASEE Sensor"); // Set your device name
-//   Serial.println("name set");
-  
-//   // Create a BLE server and set callbacks for connection events
-//   BLEServer *pServer = BLEDevice::createServer();
-//   pServer->setCallbacks(new MyServerCallbacks());
-  
-//   //reate a BLE service
-//   BLEService *pService = pServer->createService("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
-  
-//   // Create a writable characteristic for WiFi credentials
-//   BLECharacteristic *pCharacteristic = pService->createCharacteristic(
-//       WIFI_CHARACTERISTIC_UUID,
-//       BLECharacteristic::PROPERTY_WRITE
-//   );
-//   pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
-  
-//   // Start the service
-//   pService->start();
-  
-//   // Start advertising so your phone can find the ESP32
-//   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-//   pAdvertising->addServiceUUID("4fafc201-1fb5-459e-8fcc-c5c9c331914b");
-//   pAdvertising->setScanResponse(false);
-//   pAdvertising->setMinPreferred(0x06);
-//   pAdvertising->setMinPreferred(0x12);
-//   BLEDevice::startAdvertising();
-  
-//   Serial.println("BLE advertising started. Waiting for a client to connect...");
-// }
-
-// void loop() {
-//   delay(1000);
-// }

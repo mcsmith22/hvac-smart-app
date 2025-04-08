@@ -31,15 +31,12 @@ export default function BLEConnect() {
   const [devices, setDevices] = useState([]);
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [scanning, setScanning] = useState(false);
-  const [bleManager] = useState(new BleManager());
+  const bleManager = new BleManager();
   const [wifiNetworks, setWifiNetworks] = useState([]);
   const [successfullyConnectedWifi, setSuccessfullyConnectedWifi] = useState("");
-
-
   const [currentStep, setCurrentStep] = useState("scanning");
-
-
   const [deviceName, setDeviceName] = useState("");
+  const [showWifiWheel, setShowWifiWheel] = useState(false);
 
   const [deviceBrand, setDeviceBrand] = useState("");
 
@@ -65,11 +62,18 @@ export default function BLEConnect() {
     }
   };
 
-  // start scanning immediately
   useEffect(() => {
     requestPermissions();
-    scanForDevices();
+    //need to wait for BLE be working before calling it to scan devices
+    const subscription = bleManager.onStateChange((state) => {
+      if (state === 'PoweredOn') {
+        scanForDevices(); // Now it's safe to start scanning
+      }
+    }, true);
+  
     return () => {
+      console.log("should be removing a device when I leave this page")
+      subscription.remove();
       bleManager.destroy();
     };
   }, []);
@@ -110,6 +114,10 @@ export default function BLEConnect() {
       if (device && device.name) {
         // only show devices named "HVASEE Sensor" or "ESP32-BLE-Device"
         if (device.name === "HVASEE Sensor" || device.name === "ESP32-BLE-Device") {
+          console.log("------------------------------------------------")
+          console.log("found our device, should be connecting")
+          connect(device)
+
           setDevices(prev => {
             if (!prev.find(d => d.id === device.id)) return [...prev, device];
             return prev;
@@ -124,6 +132,53 @@ export default function BLEConnect() {
       setCurrentStep("deviceSelection");
     }, 10000);
   };
+
+  const connect = async (device) => {
+    // console.log(device);
+    try {
+        console.log("------------------------------------------------------------------------------");
+        const connectedDev = await bleManager.connectToDevice(device.id);
+        console.log('Connected to device:', connectedDev.name);
+        console.log('Connected dev id: ', connectedDev.id);
+        
+        setConnectedDevice(connectedDev);
+        
+        await connectedDev.discoverAllServicesAndCharacteristics();
+        
+        // Subscribe to notifications from device;
+        connectedDev.monitorCharacteristicForService(
+        wifiServiceUUID,
+        wifiCharacteristicUUID,
+        (error, characteristic) => {
+            if (error) {
+                console.warn("Notification error:", error);
+                return;
+            }
+            if (characteristic?.value) {
+                    const decodedValue = Buffer.from(characteristic.value, 'base64').toString();
+                    console.log("Received notification", decodedValue);
+                if (decodedValue[0] === "[") { // basic check to see if this is the first notification expected, a json with all of the wifi networks
+                    try {
+                        const networks = JSON.parse(decodedValue);
+                        setWifiNetworks(networks);
+                    } catch (e) {
+                        console.error("Error parsing JSON:", e);
+                    }
+                } else if (decodedValue[0] === "C"){
+                    setSuccessfullyConnectedWifi(decodedValue);
+                } else { // connection failed
+                    console.log("conenctio failed");
+                    setSuccessfullyConnectedWifi(decodedValue); // just so that it displays
+                }
+
+            }
+        }
+        );
+        // setConnected(true);
+    } catch (error) {
+        console.error('Error connecting to device:', error);
+    }
+};
 
   const handleSelectDevice = async (device) => {
     setCurrentStep("connecting");
@@ -177,6 +232,8 @@ export default function BLEConnect() {
 
   // scan for WiFi networks
   const handleScanWifiNetworks = async () => {
+    setShowWifiWheel(true)
+    console.log("line 232")
     try {
       if (!connectedDevice) {
         Alert.alert("Error", "No device connected.");
@@ -324,11 +381,16 @@ export default function BLEConnect() {
             <Text style={[styles.heading, styles.topHeading]}>WiFi Setup</Text>
             {wifiNetworks.length === 0 ? (
               <>
-                <Text style={styles.subHeading}>Scanning for WiFi networks...</Text>
-                <ActivityIndicator size="large" color="#49aae6" />
                 <TouchableOpacity style={styles.submitButton} onPress={handleScanWifiNetworks}>
                   <Text style={styles.buttonText}>Scan for WiFi Networks</Text>
                 </TouchableOpacity>
+        
+                {(showWifiWheel) && (
+                <>
+                <Text style={styles.subHeading}>Scanning for WiFi networks...</Text>
+                <ActivityIndicator size="large" color="#49aae6" />
+                </>
+              )}
               </>
             ) : (
               <>
