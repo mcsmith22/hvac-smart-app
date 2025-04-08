@@ -14,28 +14,51 @@ void MyServerCallbacks::onDisconnect(BLEServer* pServer) {
 }
 
 String MyServerCallbacks::scanForNetworks() {
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    delay(100);
-    Serial.println("Scanning for Wi-Fi networks...");
-    int numNetworks = WiFi.scanNetworks();
-    String jsonResult = "[";
-    if (numNetworks == 0) {
-        jsonResult += "{\"error\":\"No networks found\"}";
-    } else {
-        for (int i = 0; i < min(numNetworks, 10); i++) {
-            jsonResult += "{\"ssid\":\"" + WiFi.SSID(i) + "\",";
-            jsonResult += "\"encryption\":\"" + String(WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "Open" : "Secured") + "\"}";
-            if (i < min(numNetworks, 10) - 1) {
-                jsonResult += ",";
-            }
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
+  Serial.println("Scanning for Wi-Fi networks...");
+  int numNetworks = WiFi.scanNetworks();
+  String jsonResult = "[";
+  int countUnique = 0;
+  // Array to store unique SSIDs (max 10 unique networks)
+  String uniqueSSIDs[10];
+  
+  if (numNetworks == 0) {
+    jsonResult += "{\"error\":\"No networks found\"}";
+  } else {
+    for (int i = 0; i < numNetworks; i++) {
+      String currentSSID = WiFi.SSID(i);
+      bool duplicate = false;
+      // Check if this SSID is already in our unique list
+      for (int j = 0; j < countUnique; j++) {
+        if (uniqueSSIDs[j] == currentSSID) {
+          duplicate = true;
+          break;
         }
+      }
+      // If it is not a duplicate, add it to the result
+      if (!duplicate) {
+        uniqueSSIDs[countUnique] = currentSSID;
+        if (countUnique > 0) {
+          jsonResult += ",";
+        }
+        jsonResult += "{\"ssid\":\"" + currentSSID + "\",";
+        jsonResult += "\"encryption\":\"" + String(WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "Open" : "Secured") + "\"}";
+        countUnique++;
+        // Optionally, stop after 10 unique networks
+        if (countUnique >= 10) {
+          break;
+        }
+      }
     }
-    jsonResult += "]";
-    Serial.println("Scan results:");
-    Serial.println(jsonResult);
-    return jsonResult;
+  }
+  jsonResult += "]";
+  Serial.println("Scan results:");
+  Serial.println(jsonResult);
+  return jsonResult;
 }
+
 
   void MyCharacteristicCallbacks::onWrite(BLECharacteristic* pCharacteristic) {
     Serial.println("Made it to the callback");

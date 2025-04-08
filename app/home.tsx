@@ -72,7 +72,7 @@ export default function HomeScreen() {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
       const data: DeviceData[] = await response.json();
-      console.log('Fetched devices:', data);
+      // console.log('Fetched devices:', data);
       
       const devicesMap = new Map<string, DeviceData>();
       data.forEach((device) => {
