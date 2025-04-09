@@ -49,6 +49,17 @@ export default function SignupScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Sign Up' }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      
+            <SafeAreaView style={styles.safeArea}>
+              <View style={styles.headerBar}>
+                <Text style={styles.headerText}>
+                  <Text style={styles.headerBold}>HVA</Text>
+                    <Text style={styles.headerItalic}>See</Text>
+                </Text>
+              </View>
+            </SafeAreaView>
+            
       <SafeAreaView style={styles.container}>
         <Text style={styles.title}>Create an Account</Text>
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -162,5 +173,39 @@ const styles = StyleSheet.create({
   },
   linkText: {
     color: '#49aae6',
+  },
+  safeArea: {
+    flex: 0,  
+  },
+  headerBar: {
+    backgroundColor: '#49aae6', 
+    paddingTop: 5, 
+    paddingBottom: 5,  
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 70,  
+  },
+  headerText: {
+    fontSize: 28, 
+    fontWeight: 'bold',
+    color: '#fff', 
+  },
+  headerBold: {
+    fontWeight: 'bold',
+  },
+  headerItalic: {
+    fontStyle: 'italic',
+  },
+  headerHome: {
+    fontSize: 14,  
+    color: '#fff',  
+    marginTop: 0, 
+  },
+  headerWrapper: {
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    paddingVertical: 18,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#ccc',
   },
 });

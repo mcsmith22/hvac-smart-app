@@ -138,12 +138,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    padding: 16,
+  },
+  safeArea: {
+    flex: 0,  
   },
   headerWrapper: {
     backgroundColor: '#49aae6',
     padding: 16,
     alignItems: 'center',
+  },
+  headerBold: {
+    fontWeight: 'bold',
+  },
+  headerItalic: {
+    fontStyle: 'italic',
   },
   headerBar: {
     backgroundColor: '#49aae6',
@@ -157,15 +165,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
-  },
-  headerBold: {
-    fontWeight: 'bold',
-  },
-  headerItalic: {
-    fontStyle: 'italic',
-  },
-  safeArea: {
-    flex: 0,  
   },
   headerHome: {
     fontSize: 16,

@@ -136,6 +136,17 @@ export default function powerGraph () {
         <Button title="Week" onPress={() => handleTimePeriodChange('week')} />
         <Button title="Month" onPress={() => handleTimePeriodChange('month')} />
       </View>
+
+      <View style={styles.graphContainer}>
+          <LineChart
+            data={chartData}
+            width={350} // Width of the chart
+            height={220} // Height of the chart
+            chartConfig={chartConfig}
+            bezier
+            style={styles.chartStyle}
+          />
+        </View>
       
     </ScrollView>
     </>
@@ -169,6 +180,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'gray',
     marginTop: 5,
+  },
+  graphContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartStyle: {
+    borderRadius: 16,
+    marginVertical: 8,
   },
   filterButtons: {
     flexDirection: 'row',
