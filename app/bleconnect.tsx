@@ -12,6 +12,7 @@ import {
   Alert,
   ActionSheetIOS,
 } from 'react-native';
+
 import { BleManager } from 'react-native-ble-plx';
 import { Stack, router } from 'expo-router';
 import { Buffer } from 'buffer';
@@ -233,12 +234,11 @@ export default function BLEConnect() {
   // scan for WiFi networks
   const handleScanWifiNetworks = async () => {
     setShowWifiWheel(true)
-    console.log("line 232")
     try {
       if (!connectedDevice) {
         Alert.alert("Error", "No device connected.");
         return;
-      }
+      } else {
       const dataToSend = "SCANNN";
       const computedBase64Data = Buffer.from(dataToSend, 'utf8').toString('base64');
       const result = await connectedDevice.writeCharacteristicWithResponseForService(
@@ -246,6 +246,7 @@ export default function BLEConnect() {
         wifiCharacteristicUUID,
         computedBase64Data
       );
+    }
       console.log("WiFi scan command sent:", result);
     } catch (error) {
       console.error("Error scanning for WiFi networks:", error);
