@@ -89,7 +89,6 @@ export default function ErrorLogScreen() {
           <Ionicons name={unitErrorsOpen ? "chevron-up" : "chevron-down"} size={20} color="#aaa" />
         </TouchableOpacity>
         {unitErrorsOpen && (
-          
             <FlatList
               data={filterLogsByCategory("unit")}
               keyExtractor={(item) => item.id}
@@ -113,22 +112,7 @@ export default function ErrorLogScreen() {
             contentContainerStyle={styles.listContainer}
           />
         )}
-
-        <TouchableOpacity 
-          style={styles.sectionHeader} 
-          onPress={() => setGasErrorsOpen(!gasErrorsOpen)}
-        >
-          <Text style={styles.sectionTitle}>Gas Errors</Text>
-          <Ionicons name={gasErrorsOpen ? "chevron-up" : "chevron-down"} size={20} color="#aaa" />
-        </TouchableOpacity>
-        {gasErrorsOpen && (
-          <FlatList
-            data={filterLogsByCategory("gas")}
-            keyExtractor={(item) => item.id}
-            renderItem={renderErrorLogItem}
-            contentContainerStyle={styles.listContainer}
-          />
-        )}
+        
     </SafeAreaView>
     </>
   );
