@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  SafeAreaView,
-} from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, SafeAreaView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { auth } from '../.expo/config/firebase';
@@ -22,11 +15,12 @@ interface DeviceData {
   flash_sequence: string;
   amp_measurement: number;
   gas_value: number;
-  unit_type: string;
   userId: string;
-  status?: SystemStatus;
   deviceBrand?: string;
   deviceName?: string;
+  status?: SystemStatus;
+  errorDetail?: string;
+  solutionSteps?: string;
 }
 
 export default function HomeScreen() {
@@ -35,16 +29,17 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
 
   const statusInfo = {
-    good: { color: '#39b54a', text: 'No Warnings', icon: 'checkmark-circle' },
+    good: { color: '#39b54a', text: 'Good', icon: 'checkmark-circle' },
     warning: { color: '#f7b500', text: 'Warning', icon: 'alert-circle' },
     failure: { color: '#ff3b30', text: 'Failure', icon: 'close-circle' },
   };
 
   const deriveStatusFromFlashSequence = (flash: string | undefined): SystemStatus => {
     if (!flash) return 'good';
-    const firstWord = flash.split(' ')[0].toLowerCase();
-    if (firstWord === 'warning:') return 'warning';
-    if (firstWord === 'failure:') return 'failure';
+    const tokens = flash.split(' ');
+    const longCount = tokens.filter(token => token.toLowerCase() === 'long').length;
+    if (longCount >= 2) return 'failure';
+    if (longCount === 1) return 'warning';
     return 'good';
   };
 
@@ -72,7 +67,7 @@ export default function HomeScreen() {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
       const data: DeviceData[] = await response.json();
-
+      
       const devicesMap = new Map<string, DeviceData>();
       data.forEach((device) => {
         const existing = devicesMap.get(device.deviceId);
@@ -95,20 +90,26 @@ export default function HomeScreen() {
           const deviceDocSnap = await getDoc(deviceDocRef);
           if (deviceDocSnap.exists()) {
             const firestoreData = deviceDocSnap.data();
-            return {
-              ...device,
-              deviceBrand: firestoreData.deviceBrand,
-              deviceName: firestoreData.deviceName,
-            };
-          } else {
-            return null;
+            device.deviceBrand = firestoreData.deviceBrand;
+            device.deviceName = firestoreData.deviceName;
           }
+          
+          if (device.deviceBrand) {
+            const codeDocRef = doc(db, 'codes', device.deviceBrand, 'CODES', device.flash_sequence);
+            const codeDocSnap = await getDoc(codeDocRef);
+            if (codeDocSnap.exists()) {
+              const codeData = codeDocSnap.data();
+              device.errorDetail = codeData.error;
+              device.solutionSteps = codeData.steps;
+            }
+          }
+          return device;
         } catch (error) {
           console.error(`Error fetching Firestore data for device ${device.deviceId}:`, error);
           return null;
         }
       });
-
+      
       const devicesWithDetails = (await Promise.all(devicePromises)).filter(
         (device): device is DeviceData => device !== null
       );
@@ -125,7 +126,6 @@ export default function HomeScreen() {
     const intervalId = setInterval(fetchDevices, 1000);
     return () => clearInterval(intervalId);
   }, []);
-
 
   let overallStatus: SystemStatus = 'good';
   devices.forEach((device) => {
@@ -148,8 +148,7 @@ export default function HomeScreen() {
       <View style={styles.cardInfo}>
         <Text style={styles.cardInfoText}>
           Status:{' '}
-          <Text
-            style={{
+          <Text style={{
               color:
                 item.status === 'good'
                   ? statusInfo.good.color
@@ -157,14 +156,16 @@ export default function HomeScreen() {
                   ? statusInfo.warning.color
                   : statusInfo.failure.color,
               fontWeight: 'bold',
-            }}
-          >
+            }}>
             {item.status === 'good'
               ? 'Good'
               : item.status === 'warning'
               ? 'Warning'
               : 'Failure'}
           </Text>
+        </Text>
+        <Text style={styles.cardInfoText}>
+          Device Brand: {item.deviceBrand}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color="#aaa" />
@@ -174,41 +175,39 @@ export default function HomeScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'HVASee' }} />
-
-      {/* Custom header UI (from the second version) */}
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
         <View style={styles.headerBar}>
           <Text style={styles.headerText}>
             <Text style={styles.headerBold}>HVA</Text>
             <Text style={styles.headerItalic}>See</Text>
           </Text>
-          <Text style={styles.headerHome}>Home</Text>
         </View>
       </SafeAreaView>
-
       <SafeAreaView style={styles.container}>
-        <View style={styles.headerWrapper}>
-          <View style={styles.statusContainer}>
-            <Ionicons
-              name={statusInfo[overallStatus].icon}
-              size={50}
-              color={statusInfo[overallStatus].color}
-              style={{ marginBottom: 4 }}
-            />
-            <Text style={[styles.statusText, { color: statusInfo[overallStatus].color }]}>
-              {statusInfo[overallStatus].text}
-            </Text>
-          </View>
-        </View>
         {loading ? (
           <Text style={styles.loadingText}>Loading devices...</Text>
         ) : (
-          <FlatList
-            data={devices}
-            keyExtractor={(item) => item.id}
-            renderItem={renderDeviceItem}
-            contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10 }}
-          />
+          <>
+            <View style={styles.headerWrapper}>
+              <View style={styles.statusContainer}>
+                <Ionicons
+                  name={statusInfo[overallStatus].icon}
+                  size={50}
+                  color={statusInfo[overallStatus].color}
+                  style={{ marginBottom: 4 }}
+                />
+                <Text style={[styles.statusText, { color: statusInfo[overallStatus].color }]}>
+                  {statusInfo[overallStatus].text}
+                </Text>
+              </View>
+            </View>
+            <FlatList
+              data={devices}
+              keyExtractor={(item) => item.id}
+              renderItem={renderDeviceItem}
+              contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10 }}
+            />
+          </>
         )}
         <TouchableOpacity style={styles.fab} onPress={() => router.push('/bleconnect')}>
           <Text style={styles.fabText}>Connect New Device</Text>
@@ -219,9 +218,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 0,
-  },
+  safeArea: { flex: 0 },
   headerBar: {
     backgroundColor: '#49aae6',
     paddingTop: 5,
@@ -230,23 +227,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 70,
   },
-  headerText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerBold: {
-    fontWeight: 'bold',
-  },
-  headerItalic: {
-    fontStyle: 'italic',
-  },
-  headerHome: {
-    fontSize: 14,
-    color: '#fff',
-    marginTop: 0,
-  },
+  headerText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  headerBold: { fontWeight: 'bold' },
+  headerItalic: { fontStyle: 'italic' },
   container: { flex: 1, backgroundColor: '#fff' },
+  loadingText: { fontSize: 16, textAlign: 'center', marginTop: 20 },
   headerWrapper: {
     backgroundColor: '#fff',
     alignItems: 'center',
@@ -256,7 +241,6 @@ const styles = StyleSheet.create({
   },
   statusContainer: { alignItems: 'center', justifyContent: 'center' },
   statusText: { fontSize: 18, fontWeight: 'bold' },
-  loadingText: { fontSize: 16, textAlign: 'center', marginTop: 20 },
   card: {
     flexDirection: 'row',
     backgroundColor: '#f5f5f5',
@@ -273,12 +257,7 @@ const styles = StyleSheet.create({
   cardLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
   cardTitle: { fontSize: 18, fontWeight: 'bold' },
   cardInfo: { flex: 1, marginHorizontal: 8, alignItems: 'flex-start', paddingLeft: 30 },
-  cardInfoText: {
-    padding: 2,
-    fontSize: 18,
-    color: '#333',
-    textAlign: 'left',
-  },
+  cardInfoText: { fontSize: 14, color: '#333', textAlign: 'left' },
   fab: {
     position: 'absolute',
     right: 20,
@@ -295,10 +274,5 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  fabText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
+  fabText: { color: '#fff', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
 });

@@ -1,20 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import {
-  TouchableOpacity,
-  FlatList,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  View,
-  Text,
-  ActivityIndicator,
-} from 'react-native';
+import { TouchableOpacity, SafeAreaView, ScrollView, StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { getAuth } from 'firebase/auth';
+import { auth } from '../../.expo/config/firebase';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import Ionicons from "react-native-vector-icons/Ionicons";
 
-// Use the DeviceData shape from your first version (with an added "status" field)
 interface DeviceData {
   deviceId: string;
   color: string;
@@ -22,43 +12,40 @@ interface DeviceData {
   flash_sequence: string;
   amp_measurement: number;
   gas_value: number;
-  unit_type: string;
   userId: string;
   deviceBrand?: string;
   deviceName?: string;
-  status?: 'good' | 'warning' | 'failure';
+  errorDetail?: string;
+  solutionSteps?: string;
 }
+
+const removeFirstWord = (str: string): string => {
+  const words = str.split(' ');
+  return words.length > 1 ? words.slice(1).join(' ') : str;
+};
+
+const convertToISO = (dateStr: string): string => {
+  const parts = dateStr.split('-'); 
+  if (parts.length !== 6) return '1970-01-01T00:00:00Z';
+  return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
+};
+
+const deriveStatusFromFlashSequence = (flash: string | undefined): 'good' | 'warning' | 'failure' => {
+  if (!flash) return 'good';
+  const tokens = flash.split(' ');
+  const longCount = tokens.filter(token => token.toLowerCase() === 'long').length;
+  if (longCount >= 2) return 'failure';
+  if (longCount === 1) return 'warning';
+  return 'good';
+};
 
 export default function DeviceInfoScreen() {
   const { deviceId } = useLocalSearchParams();
   const router = useRouter();
-  const auth = getAuth();
-  
   const [deviceInfo, setDeviceInfo] = useState<DeviceData | null>(null);
   const [loading, setLoading] = useState(true);
-  // Retain unit errors toggle (UI from second version)
   const [unitErrorsOpen, setUnitErrorsOpen] = useState(false);
 
-  // --- Data Fetching Logic from the First Version ---
-
-  // Convert a custom dash-separated date string (6 parts) to an ISO date string.
-  function convertToISO(dateStr: string): string {
-    const parts = dateStr.split('-');
-    if (parts.length !== 6) return '1970-01-01T00:00:00Z';
-    return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
-  }
-
-  // Derive system status based on the flash_sequence content.
-  const deriveStatusFromFlashSequence = (flash: string | undefined): 'good' | 'warning' | 'failure' => {
-    if (!flash) return 'good';
-    const firstWord = flash.split(' ')[0].toLowerCase();
-    if (firstWord === 'warning:') return 'warning';
-    if (firstWord === 'failure:') return 'failure';
-    return 'good';
-  };
-
-  // Fetch device info from your API, then filter and sort to get the latest record,
-  // finally enriching it with Firestore data.
   const fetchDeviceInfo = async () => {
     try {
       const user = auth.currentUser;
@@ -73,37 +60,42 @@ export default function DeviceInfoScreen() {
           'Authorization': `Bearer ${token}`,
         },
       });
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
       const data: DeviceData[] = await response.json();
-      // Filter data for this deviceId
       const entriesForDevice = data.filter(entry => entry.deviceId === deviceId);
       if (entriesForDevice.length === 0) {
         setDeviceInfo(null);
       } else {
-        // Sort the entries by date (using our ISO converter) to get the latest entry
-        entriesForDevice.sort((a, b) => {
-          const dateA = new Date(convertToISO(a.date_of_req)).getTime();
-          const dateB = new Date(convertToISO(b.date_of_req)).getTime();
-          return dateB - dateA;
-        });
-        const latestDevice = entriesForDevice[0];
-        
-        // Enrich with additional Firestore data (deviceBrand and deviceName)
+        entriesForDevice.sort(
+          (a, b) => new Date(convertToISO(b.date_of_req)).getTime() - new Date(convertToISO(a.date_of_req)).getTime()
+        );
+        let latestDevice = entriesForDevice[0];
         const db = getFirestore();
+
         const deviceRef = doc(db, 'users', latestDevice.userId, 'devices', latestDevice.deviceId);
-        const docSnap = await getDoc(deviceRef);
-        const enrichedDevice = docSnap.exists()
-          ? {
+        const deviceSnap = await getDoc(deviceRef);
+        if (deviceSnap.exists()) {
+          const firestoreData = deviceSnap.data();
+          latestDevice = {
+            ...latestDevice,
+            deviceBrand: firestoreData.deviceBrand,
+            deviceName: firestoreData.deviceName,
+          };
+        }
+
+        if (latestDevice.deviceBrand) {
+          const codeRef = doc(db, 'codes', latestDevice.deviceBrand, 'CODES', latestDevice.flash_sequence);
+          const codeSnap = await getDoc(codeRef);
+          if (codeSnap.exists()) {
+            const codeData = codeSnap.data();
+            latestDevice = {
               ...latestDevice,
-              deviceBrand: docSnap.data().deviceBrand,
-              deviceName: docSnap.data().deviceName,
-            }
-          : latestDevice;
-        // Set the system status using the flash_sequence content
-        enrichedDevice.status = deriveStatusFromFlashSequence(enrichedDevice.flash_sequence);
-        setDeviceInfo(enrichedDevice);
+              errorDetail: codeData.error,
+              solutionSteps: codeData.steps,
+            };
+          }
+        }
+        setDeviceInfo(latestDevice);
       }
     } catch (error) {
       console.error('Error fetching device info:', error);
@@ -114,74 +106,68 @@ export default function DeviceInfoScreen() {
 
   useEffect(() => {
     fetchDeviceInfo();
-    // Poll every 1000ms for updated data
     const intervalId = setInterval(fetchDeviceInfo, 1000);
     return () => clearInterval(intervalId);
   }, [deviceId]);
 
-  // Determine overall status (if needed by UI; here we use the device's own status)
-  const overallStatus = deviceInfo ? deviceInfo.status || 'good' : 'good';
-
-  // UI Status info styling (from your second version)
+  const status = deviceInfo ? deriveStatusFromFlashSequence(deviceInfo.flash_sequence) : 'good';
   const statusInfo = {
     good: { color: '#39b54a', text: 'No Warnings', icon: 'checkmark-circle' },
     warning: { color: '#f7b500', text: 'Warning', icon: 'alert-circle' },
     failure: { color: '#ff3b30', text: 'Failure', icon: 'close-circle' },
   };
 
-  // --- UI from the Second Version ---
-
   return (
     <>
-      {/* Hide default header to use custom header */}
-      <Stack.Screen options={{ headerShown: false }} />
-
-      {/* Custom Header with back button */}
-      <SafeAreaView style={styles.safeArea}>
+      <Stack.Screen options={{ title: deviceInfo ? `${deviceInfo.deviceName}` : `Device ${deviceId}` }} />
+      <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
         <View style={styles.headerBar}>
           <Ionicons 
-              name="arrow-back"  
-              size={25}           
-              color="white"       
-              onPress={() => router.back()} 
-              style={styles.backButton} 
+            name="arrow-back"  
+            size={25}           
+            color="white"       
+            onPress={() => router.back()} 
+            style={styles.backButton} 
           />
           <Text style={styles.headerText}>
             <Text style={styles.headerBold}>HVA</Text>
             <Text style={styles.headerItalic}>See</Text>
           </Text>
           <Text style={styles.headerHome}>
-            {deviceInfo && deviceInfo.deviceName
-              ? deviceInfo.deviceName
-              : `Device: ${deviceId}`}
+            {deviceInfo && deviceInfo.deviceName ? deviceInfo.deviceName : `Device: ${deviceId}`}
           </Text>
         </View>
       </SafeAreaView>
       
       <SafeAreaView style={styles.container}>
         {loading ? (
-          <ActivityIndicator size="large" color="#49aae6" />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#49aae6" />
+          </View>
         ) : deviceInfo ? (
           <ScrollView contentContainerStyle={styles.contentContainer}>
+
             <View style={styles.statusContainer}>
               <Ionicons
-                name={statusInfo[overallStatus].icon}
+                name={statusInfo[status].icon}
                 size={50}
-                color={statusInfo[overallStatus].color}
+                color={statusInfo[status].color}
                 style={{ marginBottom: 4 }}
               />
-              <Text style={[styles.statusText, { color: statusInfo[overallStatus].color }]}>
-                {statusInfo[overallStatus].text}
+              <Text style={[styles.statusText, { color: statusInfo[status].color }]}>
+                {statusInfo[status].text}
               </Text>
             </View>
             <View style={styles.separator} />
-
-            {(deviceInfo.status === 'warning' || deviceInfo.status === 'failure') && (
+            
+            {deviceInfo.errorDetail && (status === 'warning' || status === 'failure') && (
               <TouchableOpacity 
                 style={styles.card} 
                 onPress={() => setUnitErrorsOpen(!unitErrorsOpen)}
               >
-                <Text style={styles.sectionTitle}>Unit Errors</Text>
+                <Text style={styles.sectionTitle}>
+                  Error Status: {removeFirstWord(deviceInfo.errorDetail)}
+                </Text>
                 <Ionicons 
                   style={styles.cardArrow} 
                   name={unitErrorsOpen ? "chevron-up" : "chevron-down"} 
@@ -190,6 +176,13 @@ export default function DeviceInfoScreen() {
                 />
               </TouchableOpacity>
             )}
+            
+            {unitErrorsOpen && deviceInfo.solutionSteps && (
+              <View style={styles.errorDetails}>
+                <Text style={styles.errorStepsTitle}>Solution Steps:</Text>
+                <Text style={styles.errorSteps}>{deviceInfo.solutionSteps}</Text>
+              </View>
+            )}
 
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Filter Status: </Text>
@@ -197,12 +190,14 @@ export default function DeviceInfoScreen() {
             </View>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Gas Value: </Text>
-              <Text style={styles.cardValue}>{deviceInfo.gas_value}</Text>
+              <Text style={[styles.cardValue, { color: deviceInfo.gas_value > 0 ? '#39b54a' : '#ff3b30' }]}>
+                {deviceInfo.gas_value}
+              </Text>
               <Ionicons style={styles.cardArrow} name="chevron-forward" size={20} color="#aaa" />
             </View>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Unit Type: </Text>
-              <Text style={styles.cardValue}>{deviceInfo.unit_type}</Text>
+              <Text style={styles.cardTitle}>Device Brand: </Text>
+              <Text style={styles.cardValue}>{deviceInfo.deviceBrand}</Text>
             </View>
             <TouchableOpacity
               style={styles.card}
@@ -214,7 +209,9 @@ export default function DeviceInfoScreen() {
             <Text style={styles.date}>Last Updated: {deviceInfo.date_of_req}</Text>
           </ScrollView>
         ) : (
-          <Text style={styles.errorText}>No device information found for deviceId: {deviceId}</Text>
+          <Text style={styles.errorText}>
+            No device information found for deviceId: {deviceId}
+          </Text>
         )}
       </SafeAreaView>
     </>
@@ -258,7 +255,11 @@ const styles = StyleSheet.create({
   cardTitle: { fontWeight: 'bold', fontSize: 18, color: '#333' },
   cardValue: { padding: 6, fontSize: 17, color: '#555' },
   cardArrow: { marginLeft: 'auto' },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  errorDetails: { backgroundColor: '#f0f0f0', padding: 12, borderRadius: 8, marginVertical: 6 },
+  errorStepsTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 4, color: '#333' },
+  errorSteps: { fontSize: 14, color: '#555' },
   date: { textAlign: 'center', marginTop: 12, fontSize: 14, color: '#555' },
   errorText: { color: 'red', textAlign: 'center', marginTop: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  loadingContainer: { flex: 1, justifyContent: 'center', marginTop: 80 },
 });

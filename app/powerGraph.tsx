@@ -110,7 +110,7 @@ export default function powerGraph () {
     <>
     <Stack.Screen options={{ headerShown: false }} />
     
-          <SafeAreaView style={styles.safeArea}>
+          <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
             <View style={styles.headerBar}>
               <Ionicons 
                   name="arrow-back"  
