@@ -49,7 +49,7 @@ export default function SignupScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
         <View style={styles.headerBar}>
           <Text style={styles.headerText}>
             <Text style={styles.headerBold}>HVA</Text>

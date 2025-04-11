@@ -59,7 +59,7 @@ export default function LoginScreen() {
     <>
       <Stack.Screen options={{ title: 'Login' }} />
 
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
         <View style={styles.headerBar}>
           <Text style={styles.headerText}>
             <Text style={styles.headerBold}>HVA</Text>
