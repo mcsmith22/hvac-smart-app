@@ -26,7 +26,6 @@ export default function SignupScreen() {
   };
 
   const handleSignup = async () => {
-
     if (!email.trim()) {
       setErrorMessage('Please enter an email.');
       return;
@@ -48,7 +47,17 @@ export default function SignupScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Sign Up' }} />
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.headerBar}>
+          <Text style={styles.headerText}>
+            <Text style={styles.headerBold}>HVA</Text>
+            <Text style={styles.headerItalic}>See</Text>
+          </Text>
+        </View>
+      </SafeAreaView>
+
       <SafeAreaView style={styles.container}>
         <Text style={styles.title}>Create an Account</Text>
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -93,6 +102,28 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 0,
+  },
+  headerBar: {
+    backgroundColor: '#49aae6',
+    paddingTop: 5,
+    paddingBottom: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 70,
+  },
+  headerText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  headerBold: {
+    fontWeight: 'bold',
+  },
+  headerItalic: {
+    fontStyle: 'italic',
+  },
   container: { 
     flex: 1, 
     justifyContent: 'center', 
