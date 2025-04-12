@@ -15,7 +15,8 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
-      }
+      },
+      "appleTeamId": "5GCQR6W96Y"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,9 +24,6 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_ADMIN",
-        "android.permission.BLUETOOTH_CONNECT",
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
         "android.permission.BLUETOOTH_CONNECT"
