@@ -14,7 +14,6 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 
-
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -34,6 +33,7 @@ export default function LoginScreen() {
         return 'Something went wrong. Please try again.';
     }
   };
+
 
   const handleLogin = async () => {
     if (!email.trim()) {
@@ -58,6 +58,16 @@ export default function LoginScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Login' }} />
+
+      <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
+        <View style={styles.headerBar}>
+          <Text style={styles.headerText}>
+            <Text style={styles.headerBold}>HVA</Text>
+            <Text style={styles.headerItalic}>See</Text>
+          </Text>
+        </View>
+      </SafeAreaView>
+      
       <SafeAreaView style={styles.container}>
         <Text style={styles.title}>Login</Text>
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -99,21 +109,56 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 0,
+  },
+  headerBar: {
+    backgroundColor: '#49aae6',
+    paddingTop: 5,
+    paddingBottom: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 70,
+  },
+  headerText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  headerBold: {
+    fontWeight: 'bold',
+  },
+  headerItalic: {
+    fontStyle: 'italic',
+  },
+  headerHome: {
+    fontSize: 14,
+    color: '#fff',
+    marginTop: 0,
+  },
+  headerWrapper: {
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    paddingVertical: 18,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#ccc',
+  },
+
   container: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: '#fff' 
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
   },
   title: { 
-    fontSize: 28, 
-    fontWeight: 'bold', 
-    marginBottom: 20, 
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 20,
   },
-  errorText: { 
-    color: 'red', 
-    marginBottom: 10, 
-    textAlign: 'center' 
+  errorText: {
+    color: 'red',
+    marginBottom: 10,
+    textAlign: 'center',
   },
   input: {
     borderWidth: 1,
@@ -121,11 +166,11 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
-    backgroundColor: '#fff'
+    backgroundColor: '#fff',
   },
-  wideInput: { 
+  wideInput: {
     width: '80%',
-    alignSelf: 'center'
+    alignSelf: 'center',
   },
   passwordContainer: {
     flexDirection: 'row',
@@ -135,13 +180,13 @@ const styles = StyleSheet.create({
   },
   passwordInput: {
     flex: 1,
-    paddingRight: 40, 
+    paddingRight: 40,
   },
   eyeButton: {
     position: 'absolute',
     right: 10,
-    top: '50%', 
-    transform: [{ translateY: -21 }], 
+    top: '50%',
+    transform: [{ translateY: -21 }],
     padding: 4,
   },
   button: {
@@ -153,6 +198,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+    fontSize: 18,
     textAlign: 'center',
   },
   link: {
@@ -161,5 +207,6 @@ const styles = StyleSheet.create({
   },
   linkText: {
     color: '#49aae6',
+    fontSize: 16,
   },
 });
