@@ -14,9 +14,10 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
-      },
-      "appleTeamId": "5GCQR6W96Y"
+        },
+        "NSLocalNetworkUsageDescription": "",
+        "NSBonjourServices": []
+      }
     },
     "android": {
       "adaptiveIcon": {
