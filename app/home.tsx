@@ -67,7 +67,7 @@ export default function HomeScreen() {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
       const data: DeviceData[] = await response.json();
-      
+
       const devicesMap = new Map<string, DeviceData>();
       data.forEach((device) => {
         const existing = devicesMap.get(device.deviceId);
@@ -93,7 +93,7 @@ export default function HomeScreen() {
             device.deviceBrand = firestoreData.deviceBrand;
             device.deviceName = firestoreData.deviceName;
           }
-          
+
           if (device.deviceBrand) {
             const codeDocRef = doc(db, 'codes', device.deviceBrand, 'CODES', device.flash_sequence);
             const codeDocSnap = await getDoc(codeDocRef);
@@ -148,7 +148,8 @@ export default function HomeScreen() {
       <View style={styles.cardInfo}>
         <Text style={styles.cardInfoText}>
           Status:{' '}
-          <Text style={{
+          <Text
+            style={{
               color:
                 item.status === 'good'
                   ? statusInfo.good.color
@@ -156,7 +157,8 @@ export default function HomeScreen() {
                   ? statusInfo.warning.color
                   : statusInfo.failure.color,
               fontWeight: 'bold',
-            }}>
+            }}
+          >
             {item.status === 'good'
               ? 'Good'
               : item.status === 'warning'
@@ -181,6 +183,9 @@ export default function HomeScreen() {
             <Text style={styles.headerBold}>HVA</Text>
             <Text style={styles.headerItalic}>See</Text>
           </Text>
+          <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
+            <Ionicons name="settings" size={24} color="#fff" />
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
       <SafeAreaView style={styles.container}>
@@ -188,6 +193,7 @@ export default function HomeScreen() {
           <Text style={styles.loadingText}>Loading devices...</Text>
         ) : (
           <>
+
             <View style={styles.headerWrapper}>
               <View style={styles.statusContainer}>
                 <Ionicons
@@ -226,10 +232,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     height: 70,
+    position: 'relative',
   },
   headerText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
   headerBold: { fontWeight: 'bold' },
   headerItalic: { fontStyle: 'italic' },
+  settingsButton: {
+    position: 'absolute',
+    right: 10,
+    top: 20,
+    padding: 5,
+  },
   container: { flex: 1, backgroundColor: '#fff' },
   loadingText: { fontSize: 16, textAlign: 'center', marginTop: 20 },
   headerWrapper: {
