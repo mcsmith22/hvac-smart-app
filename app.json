@@ -14,7 +14,9 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "NSLocalNetworkUsageDescription": "",
+        "NSBonjourServices": []
       }
     },
     "android": {
