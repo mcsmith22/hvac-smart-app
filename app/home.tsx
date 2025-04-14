@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, SafeAreaView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, SafeAreaView, Button } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { auth } from '../.expo/config/firebase';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { requestNotis } from './notifications';
+// import { Button } from 'react-native';
+// import PushNotificationIOS from '@react-native-community/push-notification-ios';
 
 type SystemStatus = 'good' | 'warning' | 'failure';
 
@@ -183,6 +186,15 @@ export default function HomeScreen() {
             <Text style={styles.headerBold}>HVA</Text>
             <Text style={styles.headerItalic}>See</Text>
           </Text>
+          <Button
+            onPress={() => {
+              requestNotis();
+            }}
+            title="Allow Notifications"
+            color="#841584"
+            accessibilityLabel="Learn more about this purple button"
+          />
+
           <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
             <Ionicons name="settings" size={24} color="#fff" />
           </TouchableOpacity>
