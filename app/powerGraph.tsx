@@ -3,197 +3,196 @@ import {
   StyleSheet,
   View,
   Text,
-  TouchableOpacity,
-  FlatList,
   SafeAreaView,
   ScrollView,
   Button,
+  ActivityIndicator,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { getAuth } from 'firebase/auth';
 import { LineChart } from 'react-native-chart-kit';
-import { routeToScreen } from 'expo-router/build/useScreens';
 
+interface Reading {
+  deviceId: string;
+  date_of_req: string;
+  amp_measurement: string; 
 
-// Dummy data for the chart
+}
 
-export default function powerGraph () {
-    const router = useRouter();
-    const auth = getAuth();
-    const [user, setUser] = useState(null); 
-    const [loading, setLoading] = useState(true);
-    const fetchUserData = async () => {
-        try {
-          const user = auth.currentUser;
-          if (!user) {
-            console.error("No user signed in.");
-            return;
-          }
-    
-          const token = await user.getIdToken();
-          console.log("User token:", token); 
-    
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-        }
-      };
-    
-      useEffect(() => {
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          fetchUserData();
-        } else {
-          setUser(null);
-        }
-    
-        setLoading(false);
-      }, []);
+const convertToISO = (dateStr: string): string => {
+  const parts = dateStr.split('-');
+  if (parts.length !== 6) return '1970-01-01T00:00:00Z';
+  return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
+};
 
-    const allData = {
+const formatLabel = (date: Date, period: 'day' | 'month' | 'year'): string => {
+  if (period === 'day') {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  } else if (period === 'month') {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  } else {
+    return date.toLocaleDateString([], { month: 'short' });
+  }
+};
 
-      day: {
-        labels: ['12 AM', '3 AM', '6 AM', '9 AM', '12 PM', '3 PM', '6 PM', '9 PM'], 
-        datasets: [
-          {
-            data: [5, 12, 7, 20, 15, 18, 25, 30], 
-            strokeWidth: 2,
-          },
-        ],
-      },
-      week: {
-        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        datasets: [
-          {
-            data: [30, 45, 28, 80, 99, 43, 60], 
-            strokeWidth: 2,
-          },
-        ],
-      },
-      month: {
-        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], 
-        datasets: [
-          {
-            data: [300, 400, 350, 500, 600, 450, 700, 800, 750, 850, 900, 950], 
-            strokeWidth: 2,
-          },
-        ],
-      },
-    };
-    
-    const chartConfig = {
-      backgroundColor: '#fff',
-      backgroundGradientFrom: '#ff9e00',
-      backgroundGradientTo: '#ff2e00',
-      decimalPlaces: 2,
-      color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-      labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-      style: {
-        borderRadius: 16,
-      },
-      propsForDots: {
-        r: '6',
-        strokeWidth: '2',
-        stroke: '#ffa726',
-      },
-    };
+const processReadings = (readings: Reading[], period: 'day' | 'month' | 'year') => {
+  const now = new Date();
+  let startTime: Date;
+  let binCount: number;
+  if (period === 'day') {
+    startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); 
+    binCount = 8; 
+  } else if (period === 'month') {
+    startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); 
+    binCount = 10;
+  } else { 
+    startTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    binCount = 12;
+  }
+  const totalDuration = now.getTime() - startTime.getTime();
+  const intervalDuration = totalDuration / binCount;
 
+  const labels: string[] = [];
+  const dataPoints: number[] = new Array(binCount).fill(0);
+  const counts: number[] = new Array(binCount).fill(0);
 
-  const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month'>('month');
-  const [chartData, setChartData] = useState(allData.month);
-  const handleTimePeriodChange = (period: 'day' | 'week' | 'month') => {
-    setTimePeriod(period);
-    setChartData(allData[period]);
+  readings.forEach(r => {
+    const readingTime = new Date(convertToISO(r.date_of_req)).getTime();
+    if (readingTime < startTime.getTime() || readingTime > now.getTime()) return;
+    const index = Math.floor((readingTime - startTime.getTime()) / intervalDuration);
+    if (index >= 0 && index < binCount) {
+      const ampVal = parseFloat(r.amp_measurement);
+      dataPoints[index] += ampVal;
+      counts[index] += 1;
+    }
+  });
+
+  for (let i = 0; i < binCount; i++) {
+    dataPoints[i] = counts[i] > 0 ? dataPoints[i] / counts[i] : 0;
+    const binStart = new Date(startTime.getTime() + i * intervalDuration);
+  
+    if (i === 0 || i === binCount - 1) {
+      labels.push(formatLabel(binStart, period));
+    } else {
+      labels.push('');
+    }
+  }
+  
+  
+  return {
+    labels,
+    datasets: [{ data: dataPoints, strokeWidth: 2 }],
   };
+};
+
+const chartConfig = {
+  backgroundGradientFrom: '#ffffff',
+  backgroundGradientTo: '#ffffff',
+  decimalPlaces: 2,
+  color: (opacity = 1) => `rgba(73, 170, 230, ${opacity})`, 
+  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+  style: {
+    borderRadius: 16,
+  },
+  propsForDots: {
+    r: '4',
+    strokeWidth: '2',
+    stroke: '#49aae6', 
+  },
+  propsForBackgroundLines: {
+    stroke: '#e0e0e0',
+  },
+  propsForLabels: {
+    fontSize: 12,
+  },
+};
+
+
+export default function PowerGraph() {
+  const router = useRouter();
+  const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
+  const [timePeriod, setTimePeriod] = useState<'day' | 'month' | 'year'>('month');
+  const [chartData, setChartData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchReadings = async (): Promise<Reading[]> => {
+    try {
+      const response = await fetch(`https://HVASee.azurewebsites.net/api/getColor?deviceId=${deviceId}`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+      const data: Reading[] = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Error fetching readings from Azure:", error);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      const readings = await fetchReadings();
+      const processed = processReadings(readings, timePeriod);
+      setChartData(processed);
+      setLoading(false);
+    };
+    loadData();
+  }, [deviceId, timePeriod]);
 
   return (
     <>
-    <Stack.Screen options={{ headerShown: false }} />
-    
-          <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
-            <View style={styles.headerBar}>
-              <Ionicons 
-                  name="arrow-back"  
-                  size={25}           
-                  color="white"       
-                  onPress={() => router.back()} 
-                  style={styles.backButton} 
-              />
-              <Text style={styles.headerText}>
-                <Text style={styles.headerBold}>HVA</Text>
-                  <Text style={styles.headerItalic}>See</Text>
-              </Text>
-                 
-            </View>
-
-          </SafeAreaView>
-
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Power Consumption</Text>
-
-      <View style={styles.filterButtons}>
-        <Button title="Day" onPress={() => handleTimePeriodChange('day')} />
-        <Button title="Week" onPress={() => handleTimePeriodChange('week')} />
-        <Button title="Month" onPress={() => handleTimePeriodChange('month')} />
-      </View>
-
-      <View style={styles.graphContainer}>
-          <LineChart
-            data={chartData}
-            width={350} // Width of the chart
-            height={220} // Height of the chart
-            chartConfig={chartConfig}
-            bezier
-            style={styles.chartStyle}
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
+        <View style={styles.headerBar}>
+          <Ionicons 
+            name="arrow-back"  
+            size={25} 
+            color="white"       
+            onPress={() => router.back()} 
+            style={styles.backButton} 
           />
+          <Text style={styles.headerText}>
+            <Text style={styles.headerBold}>HVA</Text>
+            <Text style={styles.headerItalic}>See</Text>
+          </Text>
         </View>
-      
-    </ScrollView>
+      </SafeAreaView>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Power Consumption</Text>
+        <View style={styles.filterButtons}>
+          <Button title="Day" onPress={() => setTimePeriod('day')} />
+          <Button title="Month" onPress={() => setTimePeriod('month')} />
+          <Button title="Year" onPress={() => setTimePeriod('year')} />
+        </View>
+        {loading ? (
+          <ActivityIndicator size="large" color="#49aae6" style={styles.loadingIndicator} />
+        ) : chartData ? (
+          <View style={styles.graphContainer}>
+            <LineChart
+              data={chartData}
+              width={350}
+              height={220}
+              chartConfig={chartConfig}
+              bezier
+              fromZero={true}
+              style={styles.chartStyle}
+            />
+          </View>
+        ) : (
+          <Text style={styles.errorText}>No power consumption data available.</Text>
+        )}
+      </ScrollView>
     </>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: 'flex-start',
+    flexGrow: 1,
     alignItems: 'center',
     paddingTop: 20,
-  },
-  backButton: {
-    position: 'absolute',
-    top: 20, 
-    left: 10,
-    padding: 10,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 10,
-  },
-  subtitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 10,
-  },
-  note: {
-    fontSize: 14,
-    color: 'gray',
-    marginTop: 5,
-  },
-  graphContainer: {
-    marginTop: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chartStyle: {
-    borderRadius: 16,
-    marginVertical: 8,
-  },
-  filterButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 20,
+    backgroundColor: '#fff',
   },
   headerBar: {
     backgroundColor: '#49aae6',
@@ -202,26 +201,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     height: 70,
+    position: 'relative',
   },
+  backButton: { position: 'absolute', top: 20, left: 10, padding: 10 },
   headerText: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
   },
-  headerBold: {
+  headerBold: { fontWeight: 'bold' },
+  headerItalic: { fontStyle: 'italic' },
+  title: {
+    fontSize: 24,
     fontWeight: 'bold',
+    marginVertical: 10,
   },
-  headerItalic: {
-    fontStyle: 'italic',
+  filterButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '90%',
+    marginBottom: 20,
   },
-  safeArea: {
-    flex: 0,  
+  graphContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerHome: {
+  chartStyle: {
+    borderRadius: 16,
+    marginVertical: 8,
+  },
+  loadingIndicator: {
+    marginTop: 40,
+  },
+  errorText: {
     fontSize: 16,
-    color: '#fff',
-    marginTop: 0,
+    color: '#ff3b30',
+    textAlign: 'center',
+    marginTop: 20,
   },
 });
-
-
