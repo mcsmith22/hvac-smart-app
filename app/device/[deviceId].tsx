@@ -3,7 +3,7 @@ import { TouchableOpacity, SafeAreaView, ScrollView, StyleSheet, View, Text, Act
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { auth } from '../../.expo/config/firebase';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import Ionicons from "react-native-vector-icons/Ionicons";
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 interface DeviceData {
   deviceId: string;
@@ -12,7 +12,6 @@ interface DeviceData {
   flash_sequence: string;
   amp_measurement: number;
   gas_value: number;
-  userId: string;
   deviceBrand?: string;
   deviceName?: string;
   errorDetail?: string;
@@ -25,7 +24,7 @@ const removeFirstWord = (str: string): string => {
 };
 
 const convertToISO = (dateStr: string): string => {
-  const parts = dateStr.split('-'); 
+  const parts = dateStr.split('-');
   if (parts.length !== 6) return '1970-01-01T00:00:00Z';
   return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
 };
@@ -48,55 +47,53 @@ export default function DeviceInfoScreen() {
 
   const fetchDeviceInfo = async () => {
     try {
+      const response = await fetch(`https://HVASee.azurewebsites.net/api/getColor?deviceId=${deviceId}`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+      const azureData: DeviceData[] = await response.json();
+
+      if (azureData.length === 0) {
+        setDeviceInfo(null);
+        return;
+      }
+
+      azureData.sort(
+        (a, b) => new Date(convertToISO(b.date_of_req)).getTime() - new Date(convertToISO(a.date_of_req)).getTime()
+      );
+      let latestDevice = azureData[0];
+
       const user = auth.currentUser;
       if (!user) {
         console.error("No user signed in.");
         return;
       }
-      const token = await user.getIdToken();
-      const response = await fetch('https://HVASee.azurewebsites.net/api/getColor', {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-      const data: DeviceData[] = await response.json();
-      const entriesForDevice = data.filter(entry => entry.deviceId === deviceId);
-      if (entriesForDevice.length === 0) {
-        setDeviceInfo(null);
-      } else {
-        entriesForDevice.sort(
-          (a, b) => new Date(convertToISO(b.date_of_req)).getTime() - new Date(convertToISO(a.date_of_req)).getTime()
-        );
-        let latestDevice = entriesForDevice[0];
-        const db = getFirestore();
+      const db = getFirestore();
+      const deviceRef = doc(db, 'users', user.uid, 'devices', deviceId);
+      const deviceSnap = await getDoc(deviceRef);
+      if (deviceSnap.exists()) {
+        const firestoreData = deviceSnap.data();
+        latestDevice = {
+          ...latestDevice,
+          deviceBrand: firestoreData.deviceBrand,
+          deviceName: firestoreData.deviceName,
+        };
+      }
 
-        const deviceRef = doc(db, 'users', latestDevice.userId, 'devices', latestDevice.deviceId);
-        const deviceSnap = await getDoc(deviceRef);
-        if (deviceSnap.exists()) {
-          const firestoreData = deviceSnap.data();
+      if (latestDevice.deviceBrand) {
+        const codeRef = doc(db, 'codes', latestDevice.deviceBrand, 'CODES', latestDevice.flash_sequence);
+        const codeSnap = await getDoc(codeRef);
+        if (codeSnap.exists()) {
+          const codeData = codeSnap.data();
           latestDevice = {
             ...latestDevice,
-            deviceBrand: firestoreData.deviceBrand,
-            deviceName: firestoreData.deviceName,
+            errorDetail: codeData.error,
+            solutionSteps: codeData.steps,
           };
         }
-
-        if (latestDevice.deviceBrand) {
-          const codeRef = doc(db, 'codes', latestDevice.deviceBrand, 'CODES', latestDevice.flash_sequence);
-          const codeSnap = await getDoc(codeRef);
-          if (codeSnap.exists()) {
-            const codeData = codeSnap.data();
-            latestDevice = {
-              ...latestDevice,
-              errorDetail: codeData.error,
-              solutionSteps: codeData.steps,
-            };
-          }
-        }
-        setDeviceInfo(latestDevice);
       }
+
+      setDeviceInfo(latestDevice);
     } catch (error) {
       console.error('Error fetching device info:', error);
     } finally {
@@ -146,7 +143,6 @@ export default function DeviceInfoScreen() {
           </View>
         ) : deviceInfo ? (
           <ScrollView contentContainerStyle={styles.contentContainer}>
-
             <View style={styles.statusContainer}>
               <Ionicons
                 name={statusInfo[status].icon}
@@ -159,7 +155,6 @@ export default function DeviceInfoScreen() {
               </Text>
             </View>
             <View style={styles.separator} />
-            
             {deviceInfo.errorDetail && (status === 'warning' || status === 'failure') && (
               <TouchableOpacity 
                 style={styles.card} 
@@ -176,14 +171,18 @@ export default function DeviceInfoScreen() {
                 />
               </TouchableOpacity>
             )}
-            
             {unitErrorsOpen && deviceInfo.solutionSteps && (
               <View style={styles.errorDetails}>
                 <Text style={styles.errorStepsTitle}>Solution Steps:</Text>
-                <Text style={styles.errorSteps}>{deviceInfo.solutionSteps}</Text>
+                {(deviceInfo.solutionSteps.replace(/\\n/g, "\n"))
+                  .split("\n")
+                  .map((line, index) => (
+                    <Text style={styles.errorSteps} key={index}>
+                      {line}
+                    </Text>
+                ))}
               </View>
             )}
-
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Filter Status: </Text>
               <Text style={styles.cardValue}>{deviceInfo.amp_measurement}</Text>
@@ -252,8 +251,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  cardTitle: { fontWeight: 'bold', fontSize: 18, color: '#333' },
-  cardValue: { padding: 6, fontSize: 17, color: '#555' },
+  cardLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold' },
+  cardInfo: { flex: 1, marginHorizontal: 8, alignItems: 'flex-start', paddingLeft: 30 },
+  cardInfoText: { fontSize: 14, color: '#333', textAlign: 'left' },
   cardArrow: { marginLeft: 'auto' },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   errorDetails: { backgroundColor: '#f0f0f0', padding: 12, borderRadius: 8, marginVertical: 6 },
@@ -261,5 +262,12 @@ const styles = StyleSheet.create({
   errorSteps: { fontSize: 14, color: '#555' },
   date: { textAlign: 'center', marginTop: 12, fontSize: 14, color: '#555' },
   errorText: { color: 'red', textAlign: 'center', marginTop: 20 },
-  loadingContainer: { flex: 1, justifyContent: 'center', marginTop: 80 },
+  loadingContainer: { fontSize: 16, textAlign: 'center', marginTop: 40 },
+  headerWrapper: {
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    paddingVertical: 18,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#ccc',
+  },
 });

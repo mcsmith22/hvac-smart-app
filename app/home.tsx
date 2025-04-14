@@ -3,15 +3,14 @@ import { StyleSheet, View, Text, TouchableOpacity, FlatList, SafeAreaView, Butto
 import { Stack, useRouter } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { auth } from '../.expo/config/firebase';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { requestNotis } from './notifications';
 // import { Button } from 'react-native';
 // import PushNotificationIOS from '@react-native-community/push-notification-ios';
 
 type SystemStatus = 'good' | 'warning' | 'failure';
 
-interface DeviceData {
-  id: string;
+interface AzureEntry {
   deviceId: string;
   color: string;
   date_of_req: string;
@@ -19,16 +18,43 @@ interface DeviceData {
   amp_measurement: number;
   gas_value: number;
   userId: string;
+}
+
+interface FirestoreDeviceData {
+  id: string;
   deviceBrand?: string;
   deviceName?: string;
+}
+
+interface CombinedDeviceData extends AzureEntry, FirestoreDeviceData {
   status?: SystemStatus;
   errorDetail?: string;
   solutionSteps?: string;
 }
 
+const removeFirstWord = (str: string): string => {
+  const words = str.split(' ');
+  return words.length > 1 ? words.slice(1).join(' ') : str;
+};
+
+const convertToISO = (dateStr: string): string => {
+  const parts = dateStr.split('-');
+  if (parts.length !== 6) return dateStr;
+  return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
+};
+
+const deriveStatusFromFlashSequence = (flash: string | undefined): 'good' | 'warning' | 'failure' => {
+  if (!flash) return 'good';
+  const tokens = flash.split(' ');
+  const longCount = tokens.filter(token => token.toLowerCase() === 'long').length;
+  if (longCount >= 2) return 'failure';
+  if (longCount === 1) return 'warning';
+  return 'good';
+};
+
 export default function HomeScreen() {
   const router = useRouter();
-  const [devices, setDevices] = useState<DeviceData[]>([]);
+  const [devices, setDevices] = useState<CombinedDeviceData[]>([]);
   const [loading, setLoading] = useState(true);
 
   const statusInfo = {
@@ -37,101 +63,95 @@ export default function HomeScreen() {
     failure: { color: '#ff3b30', text: 'Failure', icon: 'close-circle' },
   };
 
-  const deriveStatusFromFlashSequence = (flash: string | undefined): SystemStatus => {
-    if (!flash) return 'good';
-    const tokens = flash.split(' ');
-    const longCount = tokens.filter(token => token.toLowerCase() === 'long').length;
-    if (longCount >= 2) return 'failure';
-    if (longCount === 1) return 'warning';
-    return 'good';
-  };
-
-  function convertToISO(dateStr: string): string {
-    const parts = dateStr.split('-');
-    if (parts.length !== 6) return dateStr;
-    return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
-  }
-
-  const fetchDevices = async () => {
+  const fetchUserDevices = async (): Promise<FirestoreDeviceData[]> => {
     try {
       const user = auth.currentUser;
       if (!user) {
         console.log("No user signed in.");
-        return;
+        return [];
       }
-      const token = await user.getIdToken();
-      const response = await fetch('https://HVASee.azurewebsites.net/api/getColor', {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      const data: DeviceData[] = await response.json();
-
-      const devicesMap = new Map<string, DeviceData>();
-      data.forEach((device) => {
-        const existing = devicesMap.get(device.deviceId);
-        if (!existing) {
-          devicesMap.set(device.deviceId, device);
-        } else if (new Date(convertToISO(device.date_of_req)) > new Date(convertToISO(existing.date_of_req))) {
-          devicesMap.set(device.deviceId, device);
-        }
-      });
-
-      const uniqueDevices = Array.from(devicesMap.values()).map((device) => ({
-        ...device,
-        status: deriveStatusFromFlashSequence(device.flash_sequence),
-      }));
-
       const db = getFirestore();
-      const devicePromises = uniqueDevices.map(async (device) => {
-        try {
-          const deviceDocRef = doc(db, 'users', device.userId, 'devices', device.deviceId);
-          const deviceDocSnap = await getDoc(deviceDocRef);
-          if (deviceDocSnap.exists()) {
-            const firestoreData = deviceDocSnap.data();
-            device.deviceBrand = firestoreData.deviceBrand;
-            device.deviceName = firestoreData.deviceName;
-          }
-
-          if (device.deviceBrand) {
-            const codeDocRef = doc(db, 'codes', device.deviceBrand, 'CODES', device.flash_sequence);
-            const codeDocSnap = await getDoc(codeDocRef);
-            if (codeDocSnap.exists()) {
-              const codeData = codeDocSnap.data();
-              device.errorDetail = codeData.error;
-              device.solutionSteps = codeData.steps;
-            }
-          }
-          return device;
-        } catch (error) {
-          console.error(`Error fetching Firestore data for device ${device.deviceId}:`, error);
-          return null;
-        }
-      });
-      
-      const devicesWithDetails = (await Promise.all(devicePromises)).filter(
-        (device): device is DeviceData => device !== null
-      );
-      setDevices(devicesWithDetails);
+      const devicesSnapshot = await getDocs(collection(db, 'users', user.uid, 'devices'));
+      return devicesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as FirestoreDeviceData[];
     } catch (error) {
-      console.error('Error fetching devices:', error);
-    } finally {
-      setLoading(false);
+      console.error("Error fetching devices from Firestore:", error);
+      return [];
     }
   };
 
+  const fetchAzureEntries = async (): Promise<AzureEntry[]> => {
+    try {
+      const response = await fetch('https://HVASee.azurewebsites.net/api/getColor', {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching Azure data:", error);
+      return [];
+    }
+  };
+
+  const fetchDevices = async () => {
+    try {
+      const userDevices = await fetchUserDevices();
+      const validDeviceIds = userDevices.map(device => device.id);
+      const azureEntries = await fetchAzureEntries();
+
+      const filteredAzure = azureEntries.filter(entry => validDeviceIds.includes(entry.deviceId));
+
+      const latestMap = new Map<string, AzureEntry>();
+      filteredAzure.forEach(entry => {
+        if (!latestMap.has(entry.deviceId)) {
+          latestMap.set(entry.deviceId, entry);
+        } else {
+          const existing = latestMap.get(entry.deviceId)!;
+          if (new Date(convertToISO(entry.date_of_req)).getTime() >
+              new Date(convertToISO(existing.date_of_req)).getTime()) {
+            latestMap.set(entry.deviceId, entry);
+          }
+        }
+      });
+
+      const combinedDevices: CombinedDeviceData[] = [];
+      latestMap.forEach((azureEntry, id) => {
+        const metadata = userDevices.find(device => device.id === id);
+        const combined: CombinedDeviceData = {
+          ...azureEntry,
+          ...metadata,
+          status: deriveStatusFromFlashSequence(azureEntry.flash_sequence),
+        };
+        combinedDevices.push(combined);
+      });
+
+      const newDevicesStr = JSON.stringify(combinedDevices);
+      const currentDevicesStr = JSON.stringify(devices);
+      if (newDevicesStr !== currentDevicesStr) {
+        setDevices(combinedDevices);
+      }
+    } catch (error) {
+      console.error('Error fetching devices:', error);
+    } 
+  };
+
   useEffect(() => {
-    fetchDevices();
+    const initialFetch = async () => {
+      setLoading(true);
+      await fetchDevices();
+      setLoading(false);
+    };
+  
+    initialFetch();
+  
     const intervalId = setInterval(fetchDevices, 1000);
     return () => clearInterval(intervalId);
   }, []);
 
   let overallStatus: SystemStatus = 'good';
-  devices.forEach((device) => {
+  devices.forEach(device => {
     if (device.status === 'failure') {
       overallStatus = 'failure';
     } else if (device.status === 'warning' && overallStatus !== 'failure') {
@@ -139,7 +159,7 @@ export default function HomeScreen() {
     }
   });
 
-  const renderDeviceItem = ({ item }: { item: DeviceData }) => (
+  const renderDeviceItem = ({ item }: { item: CombinedDeviceData }) => (
     <TouchableOpacity
       style={styles.card}
       onPress={() => router.push(`/device/${item.deviceId}`)}
@@ -151,22 +171,15 @@ export default function HomeScreen() {
       <View style={styles.cardInfo}>
         <Text style={styles.cardInfoText}>
           Status:{' '}
-          <Text
-            style={{
-              color:
-                item.status === 'good'
-                  ? statusInfo.good.color
-                  : item.status === 'warning'
-                  ? statusInfo.warning.color
-                  : statusInfo.failure.color,
-              fontWeight: 'bold',
-            }}
-          >
-            {item.status === 'good'
-              ? 'Good'
+          <Text style={{
+            color: item.status === 'good'
+              ? statusInfo.good.color
               : item.status === 'warning'
-              ? 'Warning'
-              : 'Failure'}
+              ? statusInfo.warning.color
+              : statusInfo.failure.color,
+            fontWeight: 'bold'
+          }}>
+            {item.status === 'good' ? 'Good' : item.status === 'warning' ? 'Warning' : 'Failure'}
           </Text>
         </Text>
         <Text style={styles.cardInfoText}>
@@ -205,7 +218,6 @@ export default function HomeScreen() {
           <Text style={styles.loadingText}>Loading devices...</Text>
         ) : (
           <>
-
             <View style={styles.headerWrapper}>
               <View style={styles.statusContainer}>
                 <Ionicons
@@ -221,7 +233,7 @@ export default function HomeScreen() {
             </View>
             <FlatList
               data={devices}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.deviceId}
               renderItem={renderDeviceItem}
               contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10 }}
             />
