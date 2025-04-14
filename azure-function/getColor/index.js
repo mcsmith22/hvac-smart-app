@@ -1,49 +1,25 @@
 const { CosmosClient } = require('@azure/cosmos');
-const admin = require('firebase-admin');
 const path = require('path');
 
-if (!admin.apps.length) {
-  const serviceAccount = require(path.join(__dirname, '..', 'serviceAccountKey.json'));
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-}
-
 module.exports = async function (context, req) {
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    context.res = { status: 401, body: 'Unauthorized: Missing or invalid token' };
-    return;
-  }
-  const idToken = authHeader.split(' ')[1];
-
-
-  let decodedToken;
-  try {
-    decodedToken = await admin.auth().verifyIdToken(idToken);
-  } catch (error) {
-    context.log.error('Error verifying token:', error);
-    context.res = { status: 401, body: 'Unauthorized: Invalid token' };
-    return;
-  }
-  const uid = decodedToken.uid;
-
-
-  const endpoint = process.env.COSMOS_ENDPOINT; 
+  const endpoint = process.env.COSMOS_ENDPOINT;
   const key = process.env.COSMOS_KEY;
-  const databaseId = "ColorsDB"; 
-  const containerId = "ColorReadings"; 
+  const databaseId = "ColorsDB";
+  const containerId = "ColorReadings";
 
   const client = new CosmosClient({ endpoint, key });
   const container = client.database(databaseId).container(containerId);
 
-
   try {
-    const querySpec = {
-      query: "SELECT * FROM c WHERE c.userId = @uid",
-      parameters: [{ name: "@uid", value: uid }]
-    };
+    let querySpec;
+    if (req.query.deviceId) {
+      querySpec = {
+        query: "SELECT * FROM c WHERE c.deviceId = @deviceId",
+        parameters: [{ name: "@deviceId", value: req.query.deviceId }],
+      };
+    } else {
+      querySpec = { query: "SELECT * FROM c" };
+    }
 
     const { resources: devices } = await container.items.query(querySpec).fetchAll();
 
