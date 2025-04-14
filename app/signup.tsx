@@ -4,6 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../.expo/config/firebase';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import PushNotificationIOS from '@react-native-community/push-notification-ios';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -11,7 +12,6 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
-
   const parseAuthError = (code: string): string => {
     switch (code) {
       case 'auth/invalid-email':
