@@ -35,55 +35,69 @@ const formatLabel = (date: Date, period: 'day' | 'month' | 'year'): string => {
   }
 };
 
-const processReadings = (readings: Reading[], period: 'day' | 'month' | 'year') => {
+const processReadings = (
+  readings: Reading[],
+  period: 'day' | 'month' | 'year',
+  scaleFactor = 1
+) => {
   const now = new Date();
   let startTime: Date;
   let binCount: number;
+  
   if (period === 'day') {
-    startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); 
-    binCount = 8; 
+    startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    binCount = 8;
   } else if (period === 'month') {
-    startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); 
+    startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     binCount = 10;
-  } else { 
+  } else {
     startTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     binCount = 12;
   }
+  
   const totalDuration = now.getTime() - startTime.getTime();
   const intervalDuration = totalDuration / binCount;
-
+  
   const labels: string[] = [];
   const dataPoints: number[] = new Array(binCount).fill(0);
   const counts: number[] = new Array(binCount).fill(0);
-
+  
   readings.forEach(r => {
-    const readingTime = new Date(convertToISO(r.date_of_req)).getTime();
-    if (readingTime < startTime.getTime() || readingTime > now.getTime()) return;
+    const converted = convertToISO(r.date_of_req);
+    const readingDate = new Date(converted);
+    const readingTime = readingDate.getTime();
+
+    if (readingTime < startTime.getTime() || readingTime > now.getTime()) {
+      return;
+    }
+
     const index = Math.floor((readingTime - startTime.getTime()) / intervalDuration);
+    
     if (index >= 0 && index < binCount) {
       const ampVal = parseFloat(r.amp_measurement);
       dataPoints[index] += ampVal;
       counts[index] += 1;
+    } else {
     }
   });
 
   for (let i = 0; i < binCount; i++) {
     dataPoints[i] = counts[i] > 0 ? dataPoints[i] / counts[i] : 0;
     const binStart = new Date(startTime.getTime() + i * intervalDuration);
-  
-    if (i === 0 || i === binCount - 1) {
-      labels.push(formatLabel(binStart, period));
-    } else {
-      labels.push('');
-    }
+    const label = (i === 0 || i === binCount - 1) ? formatLabel(binStart, period) : '';
+    labels.push(label);
   }
   
+  const scaledDataPoints = dataPoints.map(val => val * scaleFactor);
   
   return {
     labels,
-    datasets: [{ data: dataPoints, strokeWidth: 2 }],
+    datasets: [{ data: scaledDataPoints, strokeWidth: 2 }],
   };
 };
+
+
+
 
 const chartConfig = {
   backgroundGradientFrom: '#ffffff',
@@ -117,17 +131,22 @@ export default function PowerGraph() {
 
   const fetchReadings = async (): Promise<Reading[]> => {
     try {
+      console.log('Querying API for deviceId:', deviceId);
       const response = await fetch(`https://HVASee.azurewebsites.net/api/getColor?deviceId=${deviceId}`, {
         headers: { 'Content-Type': 'application/json' },
       });
       if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-      const data: Reading[] = await response.json();
+      const result = await response.json();
+      
+      const data: Reading[] = Array.isArray(result) ? result : [result];
+
       return data;
     } catch (error) {
       console.error("Error fetching readings from Azure:", error);
       return [];
     }
   };
+  
 
   useEffect(() => {
     const loadData = async () => {

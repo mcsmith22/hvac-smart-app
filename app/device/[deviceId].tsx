@@ -29,14 +29,27 @@ const convertToISO = (dateStr: string): string => {
   return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
 };
 
-const deriveStatusFromFlashSequence = (flash: string | undefined): 'good' | 'warning' | 'failure' => {
-  if (!flash) return 'good';
-  const tokens = flash.split(' ');
-  const longCount = tokens.filter(token => token.toLowerCase() === 'long').length;
-  if (longCount >= 2) return 'failure';
-  if (longCount === 1) return 'warning';
-  return 'good';
+const deriveStatus = (errorString: string | undefined, gasValue: number): 'good' | 'warning' | 'failure' => {
+  let status: 'good' | 'warning' | 'failure' = 'good';
+
+  if (errorString) {
+    const firstWord = errorString.split(' ')[0].replace(':', '').toLowerCase();
+    if (firstWord === 'failure') {
+      status = 'failure';
+    } else if (firstWord === 'warning') {
+      status = 'warning';
+    } else if (firstWord === 'good') {
+      status = 'good';
+    }
+  }
+
+  if (gasValue < 0 && status !== 'failure') {
+    status = 'warning';
+  }
+
+  return status;
 };
+
 
 export default function DeviceInfoScreen() {
   const { deviceId } = useLocalSearchParams();
@@ -107,7 +120,8 @@ export default function DeviceInfoScreen() {
     return () => clearInterval(intervalId);
   }, [deviceId]);
 
-  const status = deviceInfo ? deriveStatusFromFlashSequence(deviceInfo.flash_sequence) : 'good';
+  const status = deviceInfo ? deriveStatus(deviceInfo.errorDetail, deviceInfo.gas_value) : 'good';
+
   const statusInfo = {
     good: { color: '#39b54a', text: 'No Warnings', icon: 'checkmark-circle' },
     warning: { color: '#f7b500', text: 'Warning', icon: 'alert-circle' },
@@ -192,7 +206,6 @@ export default function DeviceInfoScreen() {
               <Text style={[styles.cardValue, { color: deviceInfo.gas_value > 0 ? '#39b54a' : '#ff3b30' }]}>
                 {deviceInfo.gas_value}
               </Text>
-              <Ionicons style={styles.cardArrow} name="chevron-forward" size={20} color="#aaa" />
             </View>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Device Brand: </Text>
@@ -200,7 +213,7 @@ export default function DeviceInfoScreen() {
             </View>
             <TouchableOpacity
               style={styles.card}
-              onPress={() => router.push('/powerGraph')}
+              onPress={() => router.push(`/powerGraph?deviceId=${deviceId}`)}
             >
               <Text style={styles.cardTitle}>View Power Consumption</Text>
               <Ionicons style={styles.cardArrow} name="chevron-forward" size={20} color="#aaa" />
@@ -254,7 +267,7 @@ const styles = StyleSheet.create({
   cardLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
   cardTitle: { fontSize: 18, fontWeight: 'bold' },
   cardInfo: { flex: 1, marginHorizontal: 8, alignItems: 'flex-start', paddingLeft: 30 },
-  cardInfoText: { fontSize: 14, color: '#333', textAlign: 'left' },
+  cardValue: { fontSize: 14, color: '#333', textAlign: 'left' },
   cardArrow: { marginLeft: 'auto' },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   errorDetails: { backgroundColor: '#f0f0f0', padding: 12, borderRadius: 8, marginVertical: 6 },
