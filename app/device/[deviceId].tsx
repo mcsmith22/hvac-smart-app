@@ -16,8 +16,8 @@ interface DeviceData {
   deviceName?: string;
   errorDetail?: string;
   solutionSteps?: string;
+  youtubeVideo?: string
 }
-
 const removeFirstWord = (str: string): string => {
   const words = str.split(' ');
   return words.length > 1 ? words.slice(1).join(' ') : str;
@@ -37,6 +37,61 @@ const deriveStatusFromFlashSequence = (flash: string | undefined): 'good' | 'war
   if (longCount === 1) return 'warning';
   return 'good';
 };
+// export function updateNotifs() {
+//   const fetchNotifInfo= async () => {
+//     try {
+//       const response = await fetch(`https://HVASee.azurewebsites.net/api/getColor?deviceId=${deviceId}`, {
+//         headers: { 'Content-Type': 'application/json' },
+//       });
+//       if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+//       const azureData: DeviceData[] = await response.json();
+
+//       if (azureData.length === 0) {
+//         return;
+//       }
+
+//       azureData.sort(
+//         (a, b) => new Date(convertToISO(b.date_of_req)).getTime() - new Date(convertToISO(a.date_of_req)).getTime()
+//       );
+//       let latestDevice = azureData[0];
+
+//       const user = auth.currentUser;
+//       if (!user) {
+//         console.error("No user signed in.");
+//         return;
+//       }
+//       const db = getFirestore();
+//       const deviceRef = doc(db, 'users', user.uid, 'devices', deviceId);
+//       const deviceSnap = await getDoc(deviceRef);
+//       if (deviceSnap.exists()) {
+//         const firestoreData = deviceSnap.data();
+//         latestDevice = {
+//           ...latestDevice,
+//           deviceBrand: firestoreData.deviceBrand,
+//           deviceName: firestoreData.deviceName,
+//         };
+//       }
+
+//       if (latestDevice.deviceBrand) {
+//         const codeRef = doc(db, 'codes', latestDevice.deviceBrand, 'CODES', latestDevice.flash_sequence);
+//         const codeSnap = await getDoc(codeRef);
+//         if (codeSnap.exists()) {
+//           const codeData = codeSnap.data();
+//           latestDevice = {
+//             ...latestDevice,
+//             errorDetail: codeData.error,
+//             solutionSteps: codeData.steps,
+//             youtubeVideo: codeData.youtube
+//           };
+//         }
+//         return latestDevice.errorDetail
+//       }
+//     } catch (error) {
+//     } finally {
+//     }
+//   };
+  
+// }
 
 export default function DeviceInfoScreen() {
   const { deviceId } = useLocalSearchParams();
@@ -89,6 +144,7 @@ export default function DeviceInfoScreen() {
             ...latestDevice,
             errorDetail: codeData.error,
             solutionSteps: codeData.steps,
+            youtubeVideo: codeData.youtube,
           };
         }
       }

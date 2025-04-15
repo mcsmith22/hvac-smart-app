@@ -38,7 +38,6 @@ module.exports = async function (context, req) {
       amp_measurement: req.body.amp_measurement,
       gas_value: req.body.gas_value,
     };
-
     
     await container.items.create(newItem);
 
