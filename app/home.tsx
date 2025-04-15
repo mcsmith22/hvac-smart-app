@@ -4,11 +4,12 @@ import { Stack, useRouter } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { auth } from '../.expo/config/firebase';
 import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
-import { requestNotis } from './notifications';
+// import { requestNotis, sendTest } from './notifications';
 // import { Button } from 'react-native';
-// import PushNotificationIOS from '@react-native-community/push-notification-ios';
+import PushNotificationIOS from '@react-native-community/push-notification-ios';
 
 type SystemStatus = 'good' | 'warning' | 'failure';
+
 
 interface AzureEntry {
   deviceId: string;
@@ -30,7 +31,10 @@ interface CombinedDeviceData extends AzureEntry, FirestoreDeviceData {
   status?: SystemStatus;
   errorDetail?: string;
   solutionSteps?: string;
+  youtubeVideo?: string
 }
+
+// const [displayNotification, setDisplayNotification] = useState<CombinedDeviceData[]>([]);
 
 const removeFirstWord = (str: string): string => {
   const words = str.split(' ');
@@ -54,7 +58,7 @@ const deriveStatusFromFlashSequence = (flash: string | undefined): 'good' | 'war
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [devices, setDevices] = useState<CombinedDeviceData[]>([]);
+  const [devices, setDevices] = useState<CombinedDeviceData[]>([]); // if these don't match at some point then I send a notif
   const [loading, setLoading] = useState(true);
 
   const statusInfo = {
@@ -130,7 +134,9 @@ export default function HomeScreen() {
       const newDevicesStr = JSON.stringify(combinedDevices);
       const currentDevicesStr = JSON.stringify(devices);
       if (newDevicesStr !== currentDevicesStr) {
+        // sendTest() // we want to send a notifiction whenever the rendered devices change
         setDevices(combinedDevices);
+        // setDisplayNotification[combinedDevices]
       }
     } catch (error) {
       console.error('Error fetching devices:', error);
@@ -158,6 +164,7 @@ export default function HomeScreen() {
       overallStatus = 'warning';
     }
   });
+  
 
   const renderDeviceItem = ({ item }: { item: CombinedDeviceData }) => (
     <TouchableOpacity
@@ -190,6 +197,24 @@ export default function HomeScreen() {
     </TouchableOpacity>
   );
 
+  // // Calvin adding this so that theres notifications if the displayed device has an error
+  // let skip = true;
+  // useEffect(() => {
+  //   // if this is the first run, don't send notification
+  //   if (skip) {
+  //     skip = false
+  //     return
+  //   } else {
+  //     sendTest() // send the notis to display that are stored in the array
+  //     skip = true
+  //   }
+  //   // check if the error status of a device has changed, if so then send a notification banner saying "DeviceName : Error"
+  // }, [devices]) // any time devices changes, send notif?
+
+  // useEffect(() => {
+  //   // fetch devices, if anything has changed then send the notif
+  // })
+
   return (
     <>
       <Stack.Screen options={{ title: 'HVASee' }} />
@@ -199,14 +224,21 @@ export default function HomeScreen() {
             <Text style={styles.headerBold}>HVA</Text>
             <Text style={styles.headerItalic}>See</Text>
           </Text>
-          <Button
+          {/* <Button
             onPress={() => {
               requestNotis();
             }}
             title="Allow Notifications"
             color="#841584"
-            accessibilityLabel="Learn more about this purple button"
           />
+            <Button
+            onPress={() => {
+              sendTest();
+            }}
+            title="Test noti"
+            color="#841584"
+            accessibilityLabel=""
+          /> */}
 
           <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
             <Ionicons name="settings" size={24} color="#fff" />

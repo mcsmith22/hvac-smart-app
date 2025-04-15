@@ -261,6 +261,7 @@ uint8_t setupWhenWifiConnected() { // mostly just the setup for sensor code to d
   // Wire.begin(); // for the gas sensor connected to pin 0
   rgb_led.setPixelColor(0, rgb_led.Color(0, 0, 0));
   rgb_led.show();
+  BLEDevice::deinit(true);
   Wire.begin(6, 7); // for the rgb sensors conenctec to pins 6 and 7
   // Configure time using NTP
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");

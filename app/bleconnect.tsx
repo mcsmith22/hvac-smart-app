@@ -20,6 +20,7 @@ import { scanNetworks } from './wificonnections';
 import { auth } from '../.expo/config/firebase';
 import { addDeviceForUser } from '../app/firestoreFunctions';
 import { Picker } from '@react-native-picker/picker';
+import {sendTest } from './notifications';
 
 const wifiServiceUUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
 const wifiCharacteristicUUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
@@ -44,6 +45,7 @@ export default function BLEConnect() {
 
   const [selectedWifi, setSelectedWifi] = useState(null);
   const [wifiPassword, setWifiPassword] = useState("");
+  const [bleScanCount, setBleScanCount] = useState(0);
 
   // request android ble permissions
   const requestPermissions = async () => {
@@ -62,6 +64,11 @@ export default function BLEConnect() {
       }
     }
   };
+  // useEffect(() => {
+  //   // check if device status has changed
+  //   // if device status changed, display error:
+  //   // sendTest()
+  // }), true
 
   useEffect(() => {
     requestPermissions();
@@ -78,6 +85,11 @@ export default function BLEConnect() {
       bleManager.destroy();
     };
   }, []);
+
+  // useEffect(() => {
+  //   scanForDevices();
+  // }, [bleScanCount])
+  
 
   const handleMonitorCharacteristic = (error, characteristic) => {
     if (error) {
@@ -96,6 +108,10 @@ export default function BLEConnect() {
         }
       } else if (decodedValue[0] === "C") {
         setSuccessfullyConnectedWifi(decodedValue);
+      } else if (decodedValue[0] === "W") { // wrong password, go back to password selection and input
+        // reste wifi ssid and pswd fields
+        // try t connect to wifi again
+        
       } else {
         console.log("Device response:", decodedValue);
       }
@@ -106,6 +122,7 @@ export default function BLEConnect() {
   const scanForDevices = () => {
     setScanning(true);
     setDevices([]);
+    console.log("rescannig for devices")
     bleManager.startDeviceScan(null, null, (error, device) => {
       if (error) {
         console.warn('Scanning error:', error);
@@ -113,11 +130,18 @@ export default function BLEConnect() {
         return;
       }
       if (device && device.name) {
+        // console.log("it is finding devices bro")
         // only show devices named "HVASEE Sensor" or "ESP32-BLE-Device"
         if (device.name === "HVASEE Sensor" || device.name === "ESP32-BLE-Device") {
+          console.log(device.id)
           console.log("------------------------------------------------")
-          console.log("found our device, should be connecting")
-          connect(device)
+          // console.log("found our device, should be connecting")
+          try {
+            connect(device)
+          } catch (error) {
+            console.log("really just couldnt connect brto")
+            setScanning(false);
+          }
 
           setDevices(prev => {
             if (!prev.find(d => d.id === device.id)) return [...prev, device];
@@ -165,7 +189,7 @@ export default function BLEConnect() {
                     } catch (e) {
                         console.error("Error parsing JSON:", e);
                     }
-                } else if (decodedValue[0] === "C"){
+                } else if (decodedValue[0] === "C") {
                     setSuccessfullyConnectedWifi(decodedValue);
                 } else { // connection failed
                     console.log("conenctio failed");
@@ -216,7 +240,6 @@ export default function BLEConnect() {
     );
   };
 
-
   // device info
   const handleSubmitDeviceInfo = async () => {
     if (!deviceName.trim()) {
@@ -247,7 +270,7 @@ export default function BLEConnect() {
         computedBase64Data
       );
     }
-      console.log("WiFi scan command sent:", result);
+      // console.log("WiFi scan command sent:", result);
     } catch (error) {
       console.error("Error scanning for WiFi networks:", error);
     }
@@ -278,9 +301,11 @@ export default function BLEConnect() {
         Alert.alert("Error", "No user signed in.");
         return;
       }
+      await
+
       console.log("About to try and add device to user (user.uuid, deviceId, deviceName, deviceBrand) (", user.uid, ",", String(connectedDevice.id), "," , deviceName, ",", deviceBrand)
       await addDeviceForUser(user.uid, connectedDevice.id, deviceName, deviceBrand);
-      Alert.alert("Success", "Device connected successfully!");
+      Alert.alert("Success", "Device added to firestore!"); // this is triggering no matter what, even if the password is wrong... dumb!
       router.push('/home');
     } catch (error) {
       console.error("Error sending WiFi credentials:", error);
@@ -290,7 +315,10 @@ export default function BLEConnect() {
 
   // close button
   const renderCancelButton = () => (
-    <TouchableOpacity style={styles.cancelButton} onPress={() => router.push('/home')}>
+    <TouchableOpacity style={styles.cancelButton} onPress={() => {
+      
+      router.push('/home')}
+      }>
       <Text style={styles.cancelButtonText}>X</Text>
     </TouchableOpacity>
   );
@@ -313,6 +341,14 @@ export default function BLEConnect() {
                 <Text style={styles.notFoundText}>
                   Move closer to your device and make sure the device is plugged in.
                 </Text>
+                <TouchableOpacity style={styles.submitButton} onPress={() => {
+                  const bleManager = new BleManager();
+                  setCurrentStep("scanning")
+                  scanForDevices()
+                }}
+                  >
+                <Text style={styles.buttonText}>Scan Again</Text>
+                </TouchableOpacity>
               </>
             ) : (
               <>
