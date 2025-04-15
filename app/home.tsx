@@ -29,25 +29,33 @@ interface CombinedDeviceData extends AzureEntry, FirestoreDeviceData {
   solutionSteps?: string;
 }
 
-const removeFirstWord = (str: string): string => {
-  const words = str.split(' ');
-  return words.length > 1 ? words.slice(1).join(' ') : str;
-};
-
 const convertToISO = (dateStr: string): string => {
   const parts = dateStr.split('-');
   if (parts.length !== 6) return dateStr;
   return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
 };
 
-const deriveStatusFromFlashSequence = (flash: string | undefined): 'good' | 'warning' | 'failure' => {
-  if (!flash) return 'good';
-  const tokens = flash.split(' ');
-  const longCount = tokens.filter(token => token.toLowerCase() === 'long').length;
-  if (longCount >= 2) return 'failure';
-  if (longCount === 1) return 'warning';
-  return 'good';
+const deriveStatus = (errorString: string | undefined, gasValue: number): 'good' | 'warning' | 'failure' => {
+  let status: 'good' | 'warning' | 'failure' = 'good';
+
+  if (errorString) {
+    const firstWord = errorString.split(' ')[0].replace(':', '').toLowerCase();
+    if (firstWord === 'failure') {
+      status = 'failure';
+    } else if (firstWord === 'warning') {
+      status = 'warning';
+    } else if (firstWord === 'good') {
+      status = 'good';
+    }
+  }
+
+  if (gasValue < 0 && status !== 'failure') {
+    status = 'warning';
+  }
+
+  return status;
 };
+
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -113,16 +121,31 @@ export default function HomeScreen() {
         }
       });
 
+      const db = getFirestore();
       const combinedDevices: CombinedDeviceData[] = [];
-      latestMap.forEach((azureEntry, id) => {
+      for (const [id, azureEntry] of latestMap.entries()) {
         const metadata = userDevices.find(device => device.id === id);
-        const combined: CombinedDeviceData = {
+        let combined: CombinedDeviceData = {
           ...azureEntry,
           ...metadata,
-          status: deriveStatusFromFlashSequence(azureEntry.flash_sequence),
         };
+
+        if (combined.deviceBrand && azureEntry.flash_sequence) {
+          const codeRef = doc(db, 'codes', combined.deviceBrand, 'CODES', azureEntry.flash_sequence);
+          const codeSnap = await getDoc(codeRef);
+          if (codeSnap.exists()) {
+            const codeData = codeSnap.data();
+            combined = {
+              ...combined,
+              errorDetail: codeData.error,
+              solutionSteps: codeData.steps,
+            };
+          }
+        }
+
+        combined.status = deriveStatus(combined.errorDetail, azureEntry.gas_value);
         combinedDevices.push(combined);
-      });
+      }
 
       const newDevicesStr = JSON.stringify(combinedDevices);
       const currentDevicesStr = JSON.stringify(devices);
