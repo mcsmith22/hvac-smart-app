@@ -156,6 +156,7 @@ export default function HomeScreen() {
       const currentDevicesStr = JSON.stringify(devices);
       if (newDevicesStr !== currentDevicesStr) {
         // sendTest() // we want to send a notifiction whenever the rendered devices change
+        // if newDevicesStr ==
         setDevices(combinedDevices);
         // setDisplayNotification[combinedDevices]
       }
