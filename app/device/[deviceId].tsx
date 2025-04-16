@@ -4,6 +4,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { auth } from '../../.expo/config/firebase';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Linking } from 'react-native';
+import { toZonedTime } from 'date-fns-tz'
 
 interface DeviceData {
   deviceId: string;
@@ -16,6 +18,7 @@ interface DeviceData {
   deviceName?: string;
   errorDetail?: string;
   solutionSteps?: string;
+  youtubeLink?: string;
 }
 
 const removeFirstWord = (str: string): string => {
@@ -25,8 +28,8 @@ const removeFirstWord = (str: string): string => {
 
 const convertToISO = (dateStr: string): string => {
   const parts = dateStr.split('-');
-  if (parts.length !== 6) return '1970-01-01T00:00:00Z';
-  return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
+  if (parts.length !== 6) return dateStr;
+  return toZonedTime(`${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`, "America/New_York").toString();
 };
 
 const deriveStatus = (errorString: string | undefined, gasValue: number): 'good' | 'warning' | 'failure' => {
@@ -102,6 +105,7 @@ export default function DeviceInfoScreen() {
             ...latestDevice,
             errorDetail: codeData.error,
             solutionSteps: codeData.steps,
+            youtubeLink: codeData.youtube,
           };
         }
       }
@@ -169,7 +173,7 @@ export default function DeviceInfoScreen() {
               </Text>
             </View>
             <View style={styles.separator} />
-            {deviceInfo.errorDetail && (status === 'warning' || status === 'failure') && (
+            {deviceInfo.errorDetail !== "GOOD: NO ERROR" && (status === 'warning' || status === 'failure') && (
               <TouchableOpacity 
                 style={styles.card} 
                 onPress={() => setUnitErrorsOpen(!unitErrorsOpen)}
@@ -185,7 +189,7 @@ export default function DeviceInfoScreen() {
                 />
               </TouchableOpacity>
             )}
-            {unitErrorsOpen && deviceInfo.solutionSteps && (
+            {unitErrorsOpen && deviceInfo.solutionSteps && deviceInfo.youtubeLink && (
               <View style={styles.errorDetails}>
                 <Text style={styles.errorStepsTitle}>Solution Steps:</Text>
                 {(deviceInfo.solutionSteps.replace(/\\n/g, "\n"))
@@ -195,17 +199,37 @@ export default function DeviceInfoScreen() {
                       {line}
                     </Text>
                 ))}
+                <Text style={styles.youtubeLink}
+                      onPress={() => Linking.openURL(deviceInfo.youtubeLink)}>
+                  Video Tutorial
+                </Text>
               </View>
             )}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Filter Status: </Text>
-              <Text style={styles.cardValue}>{deviceInfo.amp_measurement}</Text>
+              { deviceInfo.amp_measurement < 0.4 && (
+                <Text style={[styles.cardValue, { color: '#39b54a'}]}>
+                  Good
+                </Text>
+              )}
+              { deviceInfo.amp_measurement >= 0.4 && (
+                <Text style={[styles.cardValue, { color: '#ff3b30' }]}>
+                  Replace Filter
+                </Text>
+              )}
             </View>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Gas Value: </Text>
-              <Text style={[styles.cardValue, { color: deviceInfo.gas_value > 0 ? '#39b54a' : '#ff3b30' }]}>
-                {deviceInfo.gas_value}
-              </Text>
+              { deviceInfo.gas_value > 0 && (
+                <Text style={[styles.cardValue, { color: '#39b54a'}]}>
+                  Good
+                </Text>
+              )}
+              { deviceInfo.gas_value < 0 && (
+                <Text style={[styles.cardValue, { color: '#ff3b30' }]}>
+                  Bad
+                </Text>
+              )}
             </View>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Device Brand: </Text>
@@ -218,7 +242,7 @@ export default function DeviceInfoScreen() {
               <Text style={styles.cardTitle}>View Power Consumption</Text>
               <Ionicons style={styles.cardArrow} name="chevron-forward" size={20} color="#aaa" />
             </TouchableOpacity>
-            <Text style={styles.date}>Last Updated: {deviceInfo.date_of_req}</Text>
+            <Text style={styles.date}>Last Updated: {convertToISO(deviceInfo.date_of_req)}</Text>
           </ScrollView>
         ) : (
           <Text style={styles.errorText}>
@@ -267,12 +291,12 @@ const styles = StyleSheet.create({
   cardLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
   cardTitle: { fontSize: 18, fontWeight: 'bold' },
   cardInfo: { flex: 1, marginHorizontal: 8, alignItems: 'flex-start', paddingLeft: 30 },
-  cardValue: { fontSize: 14, color: '#333', textAlign: 'left' },
+  cardValue: { fontSize: 16, color: '#333', textAlign: 'left' },
   cardArrow: { marginLeft: 'auto' },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   errorDetails: { backgroundColor: '#f0f0f0', padding: 12, borderRadius: 8, marginVertical: 6 },
   errorStepsTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 4, color: '#333' },
-  errorSteps: { fontSize: 14, color: '#555' },
+  errorSteps: { fontSize: 14, color: '#555', paddingBottom: 0},
   date: { textAlign: 'center', marginTop: 12, fontSize: 14, color: '#555' },
   errorText: { color: 'red', textAlign: 'center', marginTop: 20 },
   loadingContainer: { fontSize: 16, textAlign: 'center', marginTop: 40 },
@@ -283,4 +307,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: '#ccc',
   },
+  youtubeLink: {
+    color: 'blue',
+    textAlign: 'center',
+    fontSize: 16, 
+    fontWeight: 'bold',
+    padding: 10,
+    textDecorationLine: 'underline',
+    alignSelf: 'center',
+  }
 });
