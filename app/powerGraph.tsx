@@ -46,16 +46,17 @@ const processReadings = (
   
   if (period === 'day') {
     startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    binCount = 8;
+    binCount = 16;
   } else if (period === 'month') {
     startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    binCount = 10;
+    binCount = 16;
   } else {
     startTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     binCount = 12;
   }
   
   const totalDuration = now.getTime() - startTime.getTime();
+  // const intervalDuration = Math.floor(totalDuration / binCount);
   const intervalDuration = totalDuration / binCount;
   
   const labels: string[] = [];
