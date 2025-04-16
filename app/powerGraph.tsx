@@ -11,6 +11,7 @@ import {
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { LineChart } from 'react-native-chart-kit';
+import { toZonedTime } from 'date-fns-tz'
 
 interface Reading {
   deviceId: string;
@@ -22,7 +23,7 @@ interface Reading {
 const convertToISO = (dateStr: string): string => {
   const parts = dateStr.split('-');
   if (parts.length !== 6) return '1970-01-01T00:00:00Z';
-  return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
+  return toZonedTime(`${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`, "America/New_York").toString();
 };
 
 const formatLabel = (date: Date, period: 'day' | 'month' | 'year'): string => {
