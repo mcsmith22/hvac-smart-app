@@ -214,7 +214,7 @@ export default function DeviceInfoScreen() {
               )}
               { deviceInfo.amp_measurement >= 0.4 && (
                 <Text style={[styles.cardValue, { color: '#ff3b30' }]}>
-                  Replace Filter
+                  Check Filter
                 </Text>
               )}
             </View>
@@ -227,7 +227,7 @@ export default function DeviceInfoScreen() {
               )}
               { deviceInfo.gas_value < 0 && (
                 <Text style={[styles.cardValue, { color: '#ff3b30' }]}>
-                  Bad
+                  Warning
                 </Text>
               )}
             </View>

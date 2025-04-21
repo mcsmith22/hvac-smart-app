@@ -42,60 +42,64 @@ const processReadings = (
   scaleFactor = 1
 ) => {
   const now = new Date();
+  const endTime = now.getTime();
   let startTime: Date;
   let binCount: number;
-  
+
   if (period === 'day') {
-    startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    startTime = new Date(endTime - 24 * 60 * 60 * 1000);
     binCount = 8;
   } else if (period === 'month') {
-    startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    startTime = new Date(endTime - 30 * 24 * 60 * 60 * 1000);
     binCount = 10;
   } else {
-    startTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    startTime = new Date(endTime - 365 * 24 * 60 * 60 * 1000);
     binCount = 12;
   }
-  
-  const totalDuration = now.getTime() - startTime.getTime();
+
+  const totalDuration = endTime - startTime.getTime();
   const intervalDuration = totalDuration / binCount;
-  
+
   const labels: string[] = [];
   const dataPoints: number[] = new Array(binCount).fill(0);
   const counts: number[] = new Array(binCount).fill(0);
-  
+
   readings.forEach(r => {
     const converted = convertToISO(r.date_of_req);
-    const readingDate = new Date(converted);
-    const readingTime = readingDate.getTime();
+    const readingTime = new Date(converted).getTime();
 
-    if (readingTime < startTime.getTime() || readingTime > now.getTime()) {
+    if (readingTime < startTime.getTime() || readingTime > endTime) {
       return;
     }
 
-    const index = Math.floor((readingTime - startTime.getTime()) / intervalDuration);
-    
-    if (index >= 0 && index < binCount) {
-      const ampVal = parseFloat(r.amp_measurement);
-      dataPoints[index] += ampVal;
-      counts[index] += 1;
-    } else {
-    }
+    const rawIx = (readingTime - startTime.getTime()) / intervalDuration;
+    const index = Math.min(Math.max(Math.floor(rawIx), 0), binCount - 1);
+
+    const ampVal = parseFloat(r.amp_measurement);
+    dataPoints[index] += ampVal;
+    counts[index] += 1;
   });
 
   for (let i = 0; i < binCount; i++) {
     dataPoints[i] = counts[i] > 0 ? dataPoints[i] / counts[i] : 0;
-    const binStart = new Date(startTime.getTime() + i * intervalDuration);
-    const label = (i === 0 || i === binCount - 1) ? formatLabel(binStart, period) : '';
+
+    let label = '';
+    if (i === 0) {
+      label = formatLabel(startTime, period);
+    } else if (i === binCount - 1) {
+      label = formatLabel(new Date(endTime), period);
+    }
     labels.push(label);
   }
-  
+
   const scaledDataPoints = dataPoints.map(val => val * scaleFactor);
-  
+
   return {
     labels,
     datasets: [{ data: scaledDataPoints, strokeWidth: 2 }],
   };
 };
+
 
 
 
