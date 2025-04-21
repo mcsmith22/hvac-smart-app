@@ -86,11 +86,13 @@ void MyCharacteristicCallbacks::onWrite(BLECharacteristic* pCharacteristic) {
     } else if (inputStr == "NEWSCAN") {
       Serial.println("another scan");
       wifiNetworks = "";
+      wifiNetworks = scanForNetworks2();
       int limit = 0;
       while (wifiNetworks.length() == 0) {
         Serial.println("Still scanning");
-        delay(100);
-        if (limit > 10000) {
+        delay(1000);
+        limit += 1;
+        if (limit > 10) {
           break;
         }
       }
@@ -120,13 +122,8 @@ void MyCharacteristicCallbacks::onWrite(BLECharacteristic* pCharacteristic) {
         if (WiFi.status() == WL_CONNECTED) {
           send = "Connected to Network: " + ssid;
         } else {
-          // rgb_led.setPixelColor(0, rgb_led.Color(0, 0, 0));
           send = "WRONG PASSWORD FOR: " + ssid;
-          setup();
-          // reset it to be ready to recieve wifi data 
         }
-        
-        // rgb_led.show();
         
         Serial.print("send: ");
         Serial.println(send);
@@ -182,7 +179,6 @@ String MyCharacteristicCallbacks::scanForNetworks2() {
         jsonResult += "{\"ssid\":\"" + currentSSID + "\",";
         jsonResult += "\"encryption\":\"" + String(WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "Open" : "Secured") + "\"}";
         countUnique++;
-        // Optionally, stop after 10 unique networks
         if (countUnique >= 10) {
           break;
         }

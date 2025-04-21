@@ -21,8 +21,12 @@ interface DeviceData {
   youtubeLink?: string;
 }
 const removeFirstWord = (str: string): string => {
-  const words = str.split(' ');
-  return words.length > 1 ? words.slice(1).join(' ') : str;
+  if (str) {
+      const words = str.split(' ');
+    return words.length > 1 ? words.slice(1).join(' ') : str;
+  }
+  return ""
+
 };
 
 const convertToISO = (dateStr: string): string => {

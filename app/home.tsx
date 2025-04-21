@@ -4,11 +4,12 @@ import { Stack, useRouter } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { auth } from '../.expo/config/firebase';
 import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
-// import { requestNotis, sendTest } from './notifications';
+import { requestNotis, sendTest } from './notifications';
 // import { Button } from 'react-native';
 import PushNotificationIOS from '@react-native-community/push-notification-ios';
 
 type SystemStatus = 'good' | 'warning' | 'failure';
+// const [notisAccepted, setNotisAccepted] = useState(false)
 
 
 interface AzureEntry {
@@ -61,8 +62,12 @@ const deriveStatus = (errorString: string | undefined, gasValue: number): 'good'
   return status;
 };
 
-
 export default function HomeScreen() {
+  // if (notisAccepted === false) {
+  //   setNotisAccepted(returned_request = requestNotis())
+  // } else {
+  //   console.log("notis have already been requested, they said no")
+  // }
   const router = useRouter();
   const [devices, setDevices] = useState<CombinedDeviceData[]>([]); // if these don't match at some point then I send a notif
   const [loading, setLoading] = useState(true);
@@ -129,11 +134,13 @@ export default function HomeScreen() {
       const db = getFirestore();
       const combinedDevices: CombinedDeviceData[] = [];
       for (const [id, azureEntry] of latestMap.entries()) {
+        console.log("id, axureEntry", id, azureEntry)
         const metadata = userDevices.find(device => device.id === id);
-        let combined: CombinedDeviceData = {
+        let combined: CombinedDeviceData = { // single device
           ...azureEntry,
           ...metadata,
         };
+        console.log(combined)
 
         if (combined.deviceBrand && azureEntry.flash_sequence) {
           const codeRef = doc(db, 'codes', combined.deviceBrand, 'CODES', azureEntry.flash_sequence);
@@ -149,15 +156,20 @@ export default function HomeScreen() {
         }
 
         combined.status = deriveStatus(combined.errorDetail, azureEntry.gas_value);
+
         combinedDevices.push(combined);
       }
 
       const newDevicesStr = JSON.stringify(combinedDevices);
       const currentDevicesStr = JSON.stringify(devices);
       if (newDevicesStr !== currentDevicesStr) {
-        // sendTest() // we want to send a notifiction whenever the rendered devices change
+        try {
+        // sendTest(combined.errorDetail) // we want to send a notifiction whenever the rendered devices change
+        } catch (e) {
+          console.log("Couldn't send notification in home:161")
+        }
         // if newDevicesStr ==
-        setDevices(combinedDevices);
+        setDevices(combinedDevices); // this would overwrite the device 
         // setDisplayNotification[combinedDevices]
       }
     } catch (error) {

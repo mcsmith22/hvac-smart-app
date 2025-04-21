@@ -20,7 +20,8 @@ import { scanNetworks } from './wificonnections';
 import { auth } from '../.expo/config/firebase';
 import { addDeviceForUser } from '../app/firestoreFunctions';
 import { Picker } from '@react-native-picker/picker';
-import {sendTest } from './notifications';
+import { sendTest } from './notifications';
+// import {sendTest } from './notifications';
 
 const wifiServiceUUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
 const wifiCharacteristicUUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
@@ -46,6 +47,7 @@ export default function BLEConnect() {
   const [selectedWifi, setSelectedWifi] = useState(null);
   const [wifiPassword, setWifiPassword] = useState("");
   const [bleScanCount, setBleScanCount] = useState(0);
+  const [wrongPassword, setWrongPassword] = useState(false)
 
   // request android ble permissions
   const requestPermissions = async () => {
@@ -86,9 +88,35 @@ export default function BLEConnect() {
     };
   }, []);
 
-  // useEffect(() => {
-  //   scanForDevices();
-  // }, [bleScanCount])
+  useEffect(() => {
+    const tryAddDevice = async () => {
+      if (successfullyConnectedWifi !== "") {
+        const user = auth.currentUser;
+        if (!user) {
+          Alert.alert("Error", "No user signed in.");
+          return;
+        }
+  
+        console.log(
+          "About to try and add device to user (user.uuid, deviceId, deviceName, deviceBrand):",
+          user.uid, connectedDevice.id, deviceName, deviceBrand
+        );
+  
+        await addDeviceForUser(user.uid, connectedDevice.id, deviceName, deviceBrand);
+        Alert.alert("Success", "Device added to firestore!");
+  
+        if (successfullyConnectedWifi !== "") {
+          router.push('/home');
+        } else {
+          console.log("Added device to firestore, but WiFi not connected. Staying on page.");
+          // You could show an error or retry here
+        }
+      }
+    };
+  
+    tryAddDevice(); // run the async function
+  }, [successfullyConnectedWifi]); // only runs when this value changes
+  
   
 
   const handleMonitorCharacteristic = (error, characteristic) => {
@@ -109,8 +137,11 @@ export default function BLEConnect() {
       } else if (decodedValue[0] === "C") {
         setSuccessfullyConnectedWifi(decodedValue);
       } else if (decodedValue[0] === "W") { // wrong password, go back to password selection and input
+        console.log("Line 113ish: This is where I should put wrong pswd logic")
+        setWrongPassword(true)
         // reste wifi ssid and pswd fields
         // try t connect to wifi again
+        // setSuccessfullyConnectedWifi()
         
       } else {
         console.log("Device response:", decodedValue);
@@ -120,6 +151,7 @@ export default function BLEConnect() {
 
   //scan for devices
   const scanForDevices = () => {
+    console.log("IM in scanning wtf")
     setScanning(true);
     setDevices([]);
     console.log("rescannig for devices")
@@ -159,6 +191,7 @@ export default function BLEConnect() {
   };
 
   const connect = async (device) => {
+    console.log("trying to connect to device wtf")
     // console.log(device);
     try {
         console.log("------------------------------------------------------------------------------");
@@ -167,7 +200,12 @@ export default function BLEConnect() {
         console.log('Connected dev id: ', connectedDev.id);
         
         setConnectedDevice(connectedDev);
-        
+        try {
+          sendTest("connectedd to deviceeee", "body of notification", "Line 203") 
+        } catch (e) {
+          console.log("failed sending not", e)
+        }
+
         await connectedDev.discoverAllServicesAndCharacteristics();
         
         // Subscribe to notifications from device;
@@ -190,10 +228,12 @@ export default function BLEConnect() {
                         console.error("Error parsing JSON:", e);
                     }
                 } else if (decodedValue[0] === "C") {
+                    console.log("line 194, WHY DO I HAVE BOTH THIS AND LINE 110?? SAME LOGIC/CHECK?");
                     setSuccessfullyConnectedWifi(decodedValue);
-                } else { // connection failed
+                } else if (decodedValue[0] === "W") { // connection failed
                     console.log("conenctio failed");
-                    setSuccessfullyConnectedWifi(decodedValue); // just so that it displays
+                    console.log("Line 201ish: This is where I should put wrong pswd logic")
+                    setWrongPassword(true)
                 }
 
             }
@@ -226,6 +266,7 @@ export default function BLEConnect() {
   };
 
   const selectDeviceBrandIOS = () => {
+
     ActionSheetIOS.showActionSheetWithOptions(
       {
         options: [...deviceBrands, "Cancel"],
@@ -277,6 +318,7 @@ export default function BLEConnect() {
   };
 
   const handleSubmitWifiCredentials = async () => {
+    console.log("line 295")
     if (!selectedWifi) {
       Alert.alert("Error", "Please select a WiFi network.");
       return;
@@ -295,18 +337,23 @@ export default function BLEConnect() {
       );
       console.log("WiFi credentials sent:", result);
       
-      // save device info to firestore
-      const user = auth.currentUser;
-      if (!user) {
-        Alert.alert("Error", "No user signed in.");
-        return;
-      }
-      await
+      // // save device info to firestore
+      // const user = auth.currentUser;
+      // if (!user) {
+      //   Alert.alert("Error", "No user signed in.");
+      //   return;
+      // }
 
-      console.log("About to try and add device to user (user.uuid, deviceId, deviceName, deviceBrand) (", user.uid, ",", String(connectedDevice.id), "," , deviceName, ",", deviceBrand)
-      await addDeviceForUser(user.uid, connectedDevice.id, deviceName, deviceBrand);
-      Alert.alert("Success", "Device added to firestore!"); // this is triggering no matter what, even if the password is wrong... dumb!
-      router.push('/home');
+      // console.log("About to try and add device to user (user.uuid, deviceId, deviceName, deviceBrand) (", user.uid, ",", String(connectedDevice.id), "," , deviceName, ",", deviceBrand)
+      // await addDeviceForUser(user.uid, connectedDevice.id, deviceName, deviceBrand);
+      // Alert.alert("Success", "Device added to firestore!"); // this is triggering no matter what, even if the password is wrong... need to fix this!
+      // if (successfullyConnectedWifi !== "") {
+      //     router.push('/home');
+      // } else {
+      //   console.log("Added device to firestore (without wifi connection?) but don't want to push to home without setting wifi");
+      //   console.log("line 328, handleSubmitWifiCredentials, Maybe I should await a response from the device, and if it says connect failed then I do logic here?")
+      // }
+
     } catch (error) {
       console.error("Error sending WiFi credentials:", error);
       Alert.alert("Error", "Failed to send WiFi credentials.");
@@ -444,6 +491,7 @@ export default function BLEConnect() {
                 />
                 {selectedWifi && (
                   <>
+                    
                     <Text style={styles.subHeading}>Enter WiFi Password for {selectedWifi.ssid}:</Text>
                     <TextInput
                       style={styles.input}
@@ -455,6 +503,11 @@ export default function BLEConnect() {
                     <TouchableOpacity style={styles.submitButton} onPress={handleSubmitWifiCredentials}>
                       <Text style={styles.buttonText}>Submit WiFi Credentials</Text>
                     </TouchableOpacity>
+                    {wrongPassword && (
+                      // setWifiPassword("")
+                      <Text style={styles.wrpngPasswordText}>WRONG PASSWORD FOR {selectedWifi.ssid}, TRY AGAIN:</Text>
+                    )
+                    } 
                   </>
                 )}
               </>
@@ -503,6 +556,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontWeight: '500',
     color: '#555',
+    textAlign: 'center',
+  },
+  wrpngPasswordText: {
+    fontSize: 20,
+    marginBottom: 10,
+    fontWeight: '500',
+    color: '#f00', // wanrt this to be red
     textAlign: 'center',
   },
   notFoundText: {

@@ -38,7 +38,8 @@ module.exports = async function (context, req) {
       amp_measurement: req.body.amp_measurement,
       gas_value: req.body.gas_value,
     };
-    
+    // I want to add code here to check if the last flash sequnce, gas measurement, and amp measurement were the sama as the one i'm inserting
+    // if not, I want to send a remoote notification that alerts a status change for the device.id (eg. DEVICE ___ HAS NEW ERROR)
     await container.items.create(newItem);
 
     context.res = {
