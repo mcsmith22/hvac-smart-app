@@ -480,7 +480,7 @@ export default function BLEConnect() {
               </>
             ) : (
               <>
-                <Text style={styles.subHeading}>Select a WiFi network:</Text>
+                <Text style={styles.subHeading}>Select a WiFi network</Text>
                 <FlatList
                   data={wifiNetworks}
                   keyExtractor={(item, index) => item.ssid + index}
