@@ -436,19 +436,24 @@ export default function BLEConnect() {
     <Stack.Screen options={{ title: 'HVASee' }} />
           <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
             <View style={styles.headerBar}>
+
               <Text style={styles.headerText}>
                 <Text style={styles.headerBold}>HVA</Text>
                 <Text style={styles.headerItalic}>See</Text>
               </Text>
-              <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/home')}>
-                <Ionicons name="settings" size={24} color="#fff" />
-              </TouchableOpacity>
+              
+                <Ionicons 
+                      name="arrow-back"  
+                      size={25}           
+                      color="white"       
+                      onPress={() => router.back()} 
+                      style={styles.backButton} 
+                      />
+              
             </View>
           </SafeAreaView>
-          <SafeAreaView style={styles.container}></SafeAreaView>
           <View style={styles.container}>
       {renderContent()}
-      {renderCancelButton()}
     </View>
     </>
 
@@ -520,6 +525,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     borderRadius: 8,
     backgroundColor: '#fff',
+  },
+  backButton: { 
+    position: 'absolute', 
+    top: 20, 
+    left: 10, 
+    padding: 10 
   },
   pickerContainer: {
     borderWidth: 1,
