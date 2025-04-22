@@ -13,7 +13,7 @@ import {
   SafeAreaView,
   ActionSheetIOS,
 } from 'react-native';
-
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { BleManager } from 'react-native-ble-plx';
 import { Stack, router } from 'expo-router';
 import { Buffer } from 'buffer';
@@ -289,12 +289,12 @@ export default function BLEConnect() {
     }
   };
 
-  // close button
-  const renderCancelButton = () => (
-    <TouchableOpacity style={styles.cancelButton} onPress={() => router.push('/home')}>
-      <Text style={styles.cancelButtonText}>X</Text>
-    </TouchableOpacity>
-  );
+  // // close button
+  // const renderCancelButton = () => (
+  //   <TouchableOpacity style={styles.cancelButton} onPress={() => router.push('/home')}>
+  //     <Text style={styles.cancelButtonText}>X</Text>
+  //   </TouchableOpacity>
+  // );
 
   const renderContent = () => {
     switch (currentStep) {
@@ -440,9 +440,9 @@ export default function BLEConnect() {
                 <Text style={styles.headerBold}>HVA</Text>
                 <Text style={styles.headerItalic}>See</Text>
               </Text>
-              {/* <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
+              <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/home')}>
                 <Ionicons name="settings" size={24} color="#fff" />
-              </TouchableOpacity> */}
+              </TouchableOpacity>
             </View>
           </SafeAreaView>
           <SafeAreaView style={styles.container}></SafeAreaView>
