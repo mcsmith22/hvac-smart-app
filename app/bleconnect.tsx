@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  SafeAreaView,
   ActionSheetIOS,
 } from 'react-native';
 
@@ -431,14 +432,49 @@ export default function BLEConnect() {
   };
 
   return (
-    <View style={styles.container}>
+    <>
+    <Stack.Screen options={{ title: 'HVASee' }} />
+          <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
+            <View style={styles.headerBar}>
+              <Text style={styles.headerText}>
+                <Text style={styles.headerBold}>HVA</Text>
+                <Text style={styles.headerItalic}>See</Text>
+              </Text>
+              {/* <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
+                <Ionicons name="settings" size={24} color="#fff" />
+              </TouchableOpacity> */}
+            </View>
+          </SafeAreaView>
+          <SafeAreaView style={styles.container}></SafeAreaView>
+          <View style={styles.container}>
       {renderContent()}
       {renderCancelButton()}
     </View>
+    </>
+
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 0 },
+  headerBar: {
+    backgroundColor: '#49aae6',
+    paddingTop: 5,
+    paddingBottom: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 70,
+    position: 'relative',
+  },
+  headerText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  headerBold: { fontWeight: 'bold' },
+  headerItalic: { fontStyle: 'italic' },
+  settingsButton: {
+    position: 'absolute',
+    right: 10,
+    top: 20,
+    padding: 5,
+  },
   container: {
     flex: 1,
     padding: 20,
