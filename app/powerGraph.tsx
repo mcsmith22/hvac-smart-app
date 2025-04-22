@@ -47,22 +47,15 @@ const processReadings = (
   let binCount: number;
 
   if (period === 'day') {
-    startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    binCount = 16;
     startTime = new Date(endTime - 24 * 60 * 60 * 1000);
     binCount = 8;
   } else if (period === 'month') {
-    startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    binCount = 16;
     startTime = new Date(endTime - 30 * 24 * 60 * 60 * 1000);
     binCount = 10;
   } else {
     startTime = new Date(endTime - 365 * 24 * 60 * 60 * 1000);
     binCount = 12;
   }
-  
-  const totalDuration = now.getTime() - startTime.getTime();
-  // const intervalDuration = Math.floor(totalDuration / binCount);
 
   const totalDuration = endTime - startTime.getTime();
   const intervalDuration = totalDuration / binCount;
