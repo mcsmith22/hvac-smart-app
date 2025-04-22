@@ -10,6 +10,12 @@ import PushNotificationIOS from '@react-native-community/push-notification-ios';
 
 type SystemStatus = 'good' | 'warning' | 'failure';
 // const [notisAccepted, setNotisAccepted] = useState(false)
+// const [notisRejected, setNotisRejected] = useState(false)
+var notisAccepted = false
+var notisRejected = false
+// const [totalStats, setTotalStats] = useState("")
+var totalStatus = ""
+const [overallStatus, setOverallStatus] = useState<SystemStatus>('good')
 
 
 interface AzureEntry {
@@ -45,6 +51,7 @@ const deriveStatus = (errorString: string | undefined, gasValue: number): 'good'
   let status: 'good' | 'warning' | 'failure' = 'good';
 
   if (errorString) {
+
     const firstWord = errorString.split(' ')[0].replace(':', '').toLowerCase();
     if (firstWord === 'failure') {
       status = 'failure';
@@ -63,11 +70,15 @@ const deriveStatus = (errorString: string | undefined, gasValue: number): 'good'
 };
 
 export default function HomeScreen() {
-  // if (notisAccepted === false) {
-  //   setNotisAccepted(returned_request = requestNotis())
-  // } else {
-  //   console.log("notis have already been requested, they said no")
-  // }
+  if ((notisAccepted == false) && (notisRejected == false)) {
+    let user_notification_response = requestNotis()
+    if (user_notification_response == false) {
+      notisRejected = true
+    } else {
+      notisAccepted = true
+    }
+  } else {
+  }
   const router = useRouter();
   const [devices, setDevices] = useState<CombinedDeviceData[]>([]); // if these don't match at some point then I send a notif
   const [loading, setLoading] = useState(true);
@@ -134,13 +145,13 @@ export default function HomeScreen() {
       const db = getFirestore();
       const combinedDevices: CombinedDeviceData[] = [];
       for (const [id, azureEntry] of latestMap.entries()) {
-        console.log("id, axureEntry", id, azureEntry)
+        // console.log("id, axureEntry", id, azureEntry)
         const metadata = userDevices.find(device => device.id === id);
         let combined: CombinedDeviceData = { // single device
           ...azureEntry,
           ...metadata,
         };
-        console.log(combined)
+        // console.log(combined)
 
         if (combined.deviceBrand && azureEntry.flash_sequence) {
           const codeRef = doc(db, 'codes', combined.deviceBrand, 'CODES', azureEntry.flash_sequence);
@@ -154,7 +165,6 @@ export default function HomeScreen() {
             };
           }
         }
-
         combined.status = deriveStatus(combined.errorDetail, azureEntry.gas_value);
 
         combinedDevices.push(combined);
@@ -162,14 +172,25 @@ export default function HomeScreen() {
 
       const newDevicesStr = JSON.stringify(combinedDevices);
       const currentDevicesStr = JSON.stringify(devices);
+      // console.log("new device: ", combinedDevices)
+      // console.log("old device: ", devices)
+
       if (newDevicesStr !== currentDevicesStr) {
         try {
+          // console.log("stringifies didnt match")
+          // checkNotificiation(combinedDevices, devices)
         // sendTest(combined.errorDetail) // we want to send a notifiction whenever the rendered devices change
         } catch (e) {
           console.log("Couldn't send notification in home:161")
         }
-        // if newDevicesStr ==
-        setDevices(combinedDevices); // this would overwrite the device 
+          setDevices(combinedDevices); // this would overwrite the device 
+          // once you have combinedDevices, compute the status:
+          const newStatus = combinedDevices.some(d => d.status === 'failure')
+          ? 'failure'
+          : combinedDevices.some(d => d.status === 'warning')
+            ? 'warning'
+            : 'good'
+          setOverallStatus(newStatus)
         // setDisplayNotification[combinedDevices]
       }
     } catch (error) {
@@ -190,12 +211,22 @@ export default function HomeScreen() {
     return () => clearInterval(intervalId);
   }, []);
 
-  let overallStatus: SystemStatus = 'good';
+  
+  var overallStatus: SystemStatus = 'good';
   devices.forEach(device => {
+    var oldStatus = totalStatus;
     if (device.status === 'failure') {
       overallStatus = 'failure';
+      totalStatus = 'failure';
     } else if (device.status === 'warning' && overallStatus !== 'failure') {
       overallStatus = 'warning';
+      totalStatus = 'warning';
+    }
+    
+    if (oldStatus != overallStatus) {
+      console.log("******************* send please please please *************************")
+      sendTest("asdmnas", "asmncs", "akjscnasc")
+      
     }
   });
   
@@ -258,22 +289,17 @@ export default function HomeScreen() {
             <Text style={styles.headerBold}>HVA</Text>
             <Text style={styles.headerItalic}>See</Text>
           </Text>
-          {/* <Button
-            onPress={() => {
-              requestNotis();
-            }}
-            title="Allow Notifications"
-            color="#841584"
-          />
             <Button
             onPress={() => {
-              sendTest();
+              try {
+                console.log("line 276 home")
+                sendTest("blah", "blah", "blah"); }
+              catch (e) {
+                console.log("Couldnt sen noti", e)
+              }
             }}
             title="Test noti"
-            color="#841584"
-            accessibilityLabel=""
-          /> */}
-
+            color="#841584" />
           <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/settings')}>
             <Ionicons name="settings" size={24} color="#fff" />
           </TouchableOpacity>

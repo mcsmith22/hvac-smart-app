@@ -154,7 +154,7 @@ export default function BLEConnect() {
     console.log("IM in scanning wtf")
     setScanning(true);
     setDevices([]);
-    console.log("rescannig for devices")
+    // console.log("rescannig for devices")
     bleManager.startDeviceScan(null, null, (error, device) => {
       if (error) {
         console.warn('Scanning error:', error);
@@ -162,9 +162,10 @@ export default function BLEConnect() {
         return;
       }
       if (device && device.name) {
+        console.log(device.name)
         // console.log("it is finding devices bro")
         // only show devices named "HVASEE Sensor" or "ESP32-BLE-Device"
-        if (device.name === "HVASEE Sensor" || device.name === "ESP32-BLE-Device") {
+        if (device.name === "HVASee Sensor" || device.name === "ESP32-BLE-Device") {
           console.log(device.id)
           console.log("------------------------------------------------")
           // console.log("found our device, should be connecting")
