@@ -25,10 +25,6 @@ import {
 } from 'firebase/firestore';
 import { toZonedTime } from 'date-fns-tz';
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Types
-// ────────────────────────────────────────────────────────────────────────────────
-
 type SystemStatus = 'good' | 'warning' | 'failure';
 
 interface TelemetryDoc {
@@ -46,7 +42,7 @@ interface DeviceMetadata {
 
 interface DeviceInfoUI extends DeviceMetadata {
   deviceId: string;
-  date_of_req: string; // ISO string for UI only
+  date_of_req: string; 
   flash_sequence: string;
   amp_measurement: number;
   gas_value: number;
@@ -54,10 +50,6 @@ interface DeviceInfoUI extends DeviceMetadata {
   solutionSteps?: string;
   youtubeLink?: string;
 }
-
-// ────────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────────────────────────────────────────
 
 const deriveStatus = (
   errorString: string | undefined,
@@ -75,10 +67,6 @@ const deriveStatus = (
 const zonedIso = (iso: string) => toZonedTime(iso, 'America/New_York').toString();
 
 const removeFirstWord = (str: string) => str.split(' ').slice(1).join(' ');
-
-// ────────────────────────────────────────────────────────────────────────────────
-// Component
-// ────────────────────────────────────────────────────────────────────────────────
 
 export default function DeviceInfoScreen() {
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();

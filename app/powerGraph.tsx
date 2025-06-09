@@ -133,14 +133,25 @@ export default function PowerGraph() {
   };
 
   useEffect(() => {
+    let isMounted = true;
     const load = async () => {
       setLoading(true);
-      const readings = await fetchReadings(timePeriod);
-      setChartData(processReadings(readings, timePeriod));
-      setLoading(false);
+      try {
+        const rows = await fetchReadings(timePeriod);
+        if (!isMounted) return;
+        setChartData(processReadings(rows, timePeriod));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
     };
     load();
+    return () => {
+      isMounted = false;
+    };
   }, [deviceId, timePeriod]);
+
 
   return (
     <>
