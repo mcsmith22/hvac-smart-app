@@ -3,18 +3,27 @@ import { StyleSheet, View, Text, TouchableOpacity, FlatList, SafeAreaView } from
 import { Stack, useRouter } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { auth } from '../.expo/config/firebase';
-import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  query,
+  orderBy,
+  limit,
+  Timestamp,
+} from 'firebase/firestore';
 
 type SystemStatus = 'good' | 'warning' | 'failure';
 
-interface AzureEntry {
-  deviceId: string;
-  color: string;
-  date_of_req: string;
-  flash_sequence: string;
-  amp_measurement: number;
-  gas_value: number;
-  userId: string;
+
+interface FirestoreTelemetry {
+  ts: Timestamp;
+  amp: number;
+  gasPpm: number;
+  flashSequence: string;
+  expireAt: Timestamp;
 }
 
 interface FirestoreDeviceData {
@@ -23,20 +32,15 @@ interface FirestoreDeviceData {
   deviceName?: string;
 }
 
-interface CombinedDeviceData extends AzureEntry, FirestoreDeviceData {
+interface CombinedDeviceData extends FirestoreDeviceData, Omit<FirestoreTelemetry, 'ts' | 'expireAt'> {
+  ts: string;
   status?: SystemStatus;
   errorDetail?: string;
   solutionSteps?: string;
 }
 
-const convertToISO = (dateStr: string): string => {
-  const parts = dateStr.split('-');
-  if (parts.length !== 6) return dateStr;
-  return `${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`;
-};
-
-const deriveStatus = (errorString: string | undefined, gasValue: number): 'good' | 'warning' | 'failure' => {
-  let status: 'good' | 'warning' | 'failure' = 'good';
+const deriveStatus = (errorString: string | undefined, gasValue: number): SystemStatus => {
+  let status: SystemStatus = 'good';
 
   if (errorString) {
     const firstWord = errorString.split(' ')[0].replace(':', '').toLowerCase();
@@ -44,8 +48,6 @@ const deriveStatus = (errorString: string | undefined, gasValue: number): 'good'
       status = 'failure';
     } else if (firstWord === 'warning') {
       status = 'warning';
-    } else if (firstWord === 'good') {
-      status = 'good';
     }
   }
 
@@ -56,7 +58,6 @@ const deriveStatus = (errorString: string | undefined, gasValue: number): 'good'
   return status;
 };
 
-
 export default function HomeScreen() {
   const router = useRouter();
   const [devices, setDevices] = useState<CombinedDeviceData[]>([]);
@@ -66,145 +67,127 @@ export default function HomeScreen() {
     good: { color: '#39b54a', text: 'Good', icon: 'checkmark-circle' },
     warning: { color: '#f7b500', text: 'Warning', icon: 'alert-circle' },
     failure: { color: '#ff3b30', text: 'Failure', icon: 'close-circle' },
-  };
+  } as const;
+
 
   const fetchUserDevices = async (): Promise<FirestoreDeviceData[]> => {
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        console.log("No user signed in.");
-        return [];
-      }
-      const db = getFirestore();
-      const devicesSnapshot = await getDocs(collection(db, 'users', user.uid, 'devices'));
-      return devicesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as FirestoreDeviceData[];
-    } catch (error) {
-      console.error("Error fetching devices from Firestore:", error);
-      return [];
-    }
+    const user = auth.currentUser;
+    if (!user) return [];
+
+    const db = getFirestore();
+    const snapshot = await getDocs(collection(db, 'users', user.uid, 'devices'));
+
+    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as FirestoreDeviceData[];
   };
 
-  const fetchAzureEntries = async (): Promise<AzureEntry[]> => {
-    try {
-      const response = await fetch('https://HVASee.azurewebsites.net/api/getColor', {
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      console.error("Error fetching Azure data:", error);
-      return [];
-    }
+  const fetchLatestTelemetry = async (
+    db: ReturnType<typeof getFirestore>,
+    deviceId: string,
+  ): Promise<Omit<CombinedDeviceData, keyof FirestoreDeviceData> | null> => {
+    const telemetryRef = collection(db, 'devices', deviceId, 'telemetry');
+    const q = query(telemetryRef, orderBy('ts', 'desc'), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+
+    const docData = snap.docs[0].data() as FirestoreTelemetry;
+    return {
+      amp: docData.amp,
+      gasPpm: docData.gasPpm,
+      flashSequence: docData.flashSequence,
+      ts: docData.ts.toDate().toISOString(),
+    };
   };
 
   const fetchDevices = async () => {
     try {
+      const db = getFirestore();
       const userDevices = await fetchUserDevices();
-      const validDeviceIds = userDevices.map(device => device.id);
-      const azureEntries = await fetchAzureEntries();
 
-      const filteredAzure = azureEntries.filter(entry => validDeviceIds.includes(entry.deviceId));
-
-      const latestMap = new Map<string, AzureEntry>();
-      filteredAzure.forEach(entry => {
-        if (!latestMap.has(entry.deviceId)) {
-          latestMap.set(entry.deviceId, entry);
-        } else {
-          const existing = latestMap.get(entry.deviceId)!;
-          if (new Date(convertToISO(entry.date_of_req)).getTime() >
-              new Date(convertToISO(existing.date_of_req)).getTime()) {
-            latestMap.set(entry.deviceId, entry);
-          }
-        }
+      const telemetryPromises = userDevices.map(async (device) => {
+        const latest = await fetchLatestTelemetry(db, device.id);
+        return { device, latest } as const;
       });
 
-      const db = getFirestore();
-      const combinedDevices: CombinedDeviceData[] = [];
-      for (const [id, azureEntry] of latestMap.entries()) {
-        const metadata = userDevices.find(device => device.id === id);
-        let combined: CombinedDeviceData = {
-          ...azureEntry,
-          ...metadata,
-        };
+      const deviceTelemetryPairs = await Promise.all(telemetryPromises);
 
-        if (combined.deviceBrand && azureEntry.flash_sequence) {
-          const codeRef = doc(db, 'codes', combined.deviceBrand, 'CODES', azureEntry.flash_sequence);
+      const combined: CombinedDeviceData[] = [];
+
+      for (const { device, latest } of deviceTelemetryPairs) {
+        if (!latest) continue;
+
+        let combinedData: CombinedDeviceData = {
+          ...device,
+          ...latest,
+        } as CombinedDeviceData;
+
+        if (device.deviceBrand && latest.flashSequence) {
+          const codeRef = doc(
+            db,
+            'codes',
+            device.deviceBrand,
+            'CODES',
+            latest.flashSequence,
+          );
           const codeSnap = await getDoc(codeRef);
           if (codeSnap.exists()) {
-            const codeData = codeSnap.data();
-            combined = {
-              ...combined,
-              errorDetail: codeData.error,
-              solutionSteps: codeData.steps,
-            };
+            const code = codeSnap.data();
+            combinedData.errorDetail = code.error;
+            combinedData.solutionSteps = code.steps;
           }
         }
 
-        combined.status = deriveStatus(combined.errorDetail, azureEntry.gas_value);
-        combinedDevices.push(combined);
+        combinedData.status = deriveStatus(combinedData.errorDetail, latest.gasPpm);
+        combined.push(combinedData);
       }
 
-      const newDevicesStr = JSON.stringify(combinedDevices);
-      const currentDevicesStr = JSON.stringify(devices);
-      if (newDevicesStr !== currentDevicesStr) {
-        setDevices(combinedDevices);
+      if (JSON.stringify(devices) !== JSON.stringify(combined)) {
+        setDevices(combined);
       }
-    } catch (error) {
-      console.error('Error fetching devices:', error);
-    } 
+    } catch (err) {
+      console.error('Error fetching devices', err);
+    }
   };
 
   useEffect(() => {
-    const initialFetch = async () => {
+    const init = async () => {
       setLoading(true);
       await fetchDevices();
       setLoading(false);
     };
-  
-    initialFetch();
-  
-    const intervalId = setInterval(fetchDevices, 1000);
-    return () => clearInterval(intervalId);
+
+    init();
+    const id = setInterval(fetchDevices, 1000);
+    return () => clearInterval(id);
   }, []);
 
-  let overallStatus: SystemStatus = 'good';
-  devices.forEach(device => {
-    if (device.status === 'failure') {
-      overallStatus = 'failure';
-    } else if (device.status === 'warning' && overallStatus !== 'failure') {
-      overallStatus = 'warning';
-    }
-  });
+  const overallStatus: SystemStatus = devices.reduce<SystemStatus>((acc, d) => {
+    if (d.status === 'failure') return 'failure';
+    if (d.status === 'warning' && acc !== 'failure') return 'warning';
+    return acc;
+  }, 'good');
 
   const renderDeviceItem = ({ item }: { item: CombinedDeviceData }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => router.push(`/device/${item.deviceId}`)}
+      onPress={() => router.push(`/device/${item.id}`)}
     >
       <View style={styles.cardLeft}>
         <Ionicons name="snow" size={28} color="#87CEFA" style={{ marginRight: 8 }} />
-        <Text style={styles.cardTitle}>{item.deviceName || item.deviceId}</Text>
+        <Text style={styles.cardTitle}>{item.deviceName || item.id}</Text>
       </View>
       <View style={styles.cardInfo}>
         <Text style={styles.cardInfoText}>
           Status:{' '}
-          <Text style={{
-            color: item.status === 'good'
-              ? statusInfo.good.color
-              : item.status === 'warning'
-              ? statusInfo.warning.color
-              : statusInfo.failure.color,
-            fontWeight: 'bold'
-          }}>
-            {item.status === 'good' ? 'Good' : item.status === 'warning' ? 'Warning' : 'Failure'}
+          <Text
+            style={{
+              color: statusInfo[item.status || 'good'].color,
+              fontWeight: 'bold',
+            }}
+          >
+            {statusInfo[item.status || 'good'].text}
           </Text>
         </Text>
-        <Text style={styles.cardInfoText}>
-          Device Brand: {item.deviceBrand}
-        </Text>
+        <Text style={styles.cardInfoText}>Device Brand: {item.deviceBrand}</Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color="#aaa" />
     </TouchableOpacity>
@@ -237,14 +220,14 @@ export default function HomeScreen() {
                   color={statusInfo[overallStatus].color}
                   style={{ marginBottom: 4 }}
                 />
-                <Text style={[styles.statusText, { color: statusInfo[overallStatus].color }]}>
+                <Text style={[styles.statusText, { color: statusInfo[overallStatus].color }]}> 
                   {statusInfo[overallStatus].text}
                 </Text>
               </View>
             </View>
             <FlatList
               data={devices}
-              keyExtractor={(item) => item.deviceId}
+              keyExtractor={(item) => item.id}
               renderItem={renderDeviceItem}
               contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 10 }}
             />

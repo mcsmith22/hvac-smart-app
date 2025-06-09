@@ -7,174 +7,153 @@ import {
   ScrollView,
   Button,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  Timestamp,
+} from 'firebase/firestore';
+import { toZonedTime } from 'date-fns-tz';
 import { LineChart } from 'react-native-chart-kit';
-import { toZonedTime } from 'date-fns-tz'
 
-interface Reading {
-  deviceId: string;
-  date_of_req: string;
-  amp_measurement: string; 
-
+interface AmpReading {
+  ts: Date; 
+  amp: number;
 }
 
-const convertToISO = (dateStr: string): string => {
-  const parts = dateStr.split('-');
-  if (parts.length !== 6) return '1970-01-01T00:00:00Z';
-  return toZonedTime(`${parts[0]}-${parts[1]}-${parts[2]}T${parts[3]}:${parts[4]}:${parts[5]}Z`, "America/New_York").toString();
-};
-
-const formatLabel = (date: Date, period: 'day' | 'month' | 'year'): string => {
-  if (period === 'day') {
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  } else if (period === 'month') {
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  } else {
-    return date.toLocaleDateString([], { month: 'short' });
-  }
-};
-
-const processReadings = (
-  readings: Reading[],
-  period: 'day' | 'month' | 'year',
-  scaleFactor = 1
-) => {
-  const now = new Date();
-  const endTime = now.getTime();
-  let startTime: Date;
-  let binCount: number;
-
-  if (period === 'day') {
-    startTime = new Date(endTime - 24 * 60 * 60 * 1000);
-    binCount = 8;
-  } else if (period === 'month') {
-    startTime = new Date(endTime - 30 * 24 * 60 * 60 * 1000);
-    binCount = 10;
-  } else {
-    startTime = new Date(endTime - 365 * 24 * 60 * 60 * 1000);
-    binCount = 12;
-  }
-
-  const totalDuration = endTime - startTime.getTime();
-  const intervalDuration = totalDuration / binCount;
-
-  const labels: string[] = [];
-  const dataPoints: number[] = new Array(binCount).fill(0);
-  const counts: number[] = new Array(binCount).fill(0);
-
-  readings.forEach(r => {
-    const converted = convertToISO(r.date_of_req);
-    const readingTime = new Date(converted).getTime();
-
-    if (readingTime < startTime.getTime() || readingTime > endTime) {
-      return;
-    }
-
-    const rawIx = (readingTime - startTime.getTime()) / intervalDuration;
-    const index = Math.min(Math.max(Math.floor(rawIx), 0), binCount - 1);
-
-    const ampVal = parseFloat(r.amp_measurement);
-    dataPoints[index] += ampVal;
-    counts[index] += 1;
-  });
-
-  for (let i = 0; i < binCount; i++) {
-    dataPoints[i] = counts[i] > 0 ? dataPoints[i] / counts[i] : 0;
-
-    let label = '';
-    if (i === 0) {
-      label = formatLabel(startTime, period);
-    } else if (i === binCount - 1) {
-      label = formatLabel(new Date(endTime), period);
-    }
-    labels.push(label);
-  }
-
-  const scaledDataPoints = dataPoints.map(val => val * scaleFactor);
-
-  return {
-    labels,
-    datasets: [{ data: scaledDataPoints, strokeWidth: 2 }],
-  };
-};
-
-
-
-
+type Period = 'day' | 'month' | 'year';
 
 const chartConfig = {
   backgroundGradientFrom: '#ffffff',
   backgroundGradientTo: '#ffffff',
   decimalPlaces: 2,
-  color: (opacity = 1) => `rgba(73, 170, 230, ${opacity})`, 
+  color: (opacity = 1) => `rgba(73, 170, 230, ${opacity})`,
   labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-  style: {
-    borderRadius: 16,
-  },
-  propsForDots: {
-    r: '4',
-    strokeWidth: '2',
-    stroke: '#49aae6', 
-  },
-  propsForBackgroundLines: {
-    stroke: '#e0e0e0',
-  },
-  propsForLabels: {
-    fontSize: 12,
-  },
+  style: { borderRadius: 16 },
+  propsForDots: { r: '4', strokeWidth: '2', stroke: '#49aae6' },
+  propsForBackgroundLines: { stroke: '#e0e0e0' },
+  propsForLabels: { fontSize: 12 },
 };
 
+const formatLabel = (d: Date, p: Period) => {
+  if (p === 'day') return d.toLocaleTimeString([], { hour: 'numeric' });
+  if (p === 'month') return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString([], { month: 'short' });
+};
+
+const processReadings = (readings: AmpReading[], period: Period) => {
+  const now = new Date();
+  const end = now.getTime();
+  let start: Date;
+  let bins: number;
+
+  if (period === 'day') {
+    start = new Date(end - 24 * 60 * 60 * 1000);
+    bins = 8;
+  } else if (period === 'month') {
+    start = new Date(end - 30 * 24 * 60 * 60 * 1000);
+    bins = 10;
+  } else {
+    start = new Date(end - 365 * 24 * 60 * 60 * 1000);
+    bins = 12;
+  }
+
+  const intervalDur = (end - start.getTime()) / bins;
+  const sums = new Array(bins).fill(0) as number[];
+  const counts = new Array(bins).fill(0) as number[];
+
+  readings.forEach(({ ts, amp }) => {
+    const t = ts.getTime();
+    if (t < start.getTime() || t > end) return;
+    const rawIdx = (t - start.getTime()) / intervalDur;
+    const idx = Math.min(Math.max(Math.floor(rawIdx), 0), bins - 1);
+    sums[idx] += amp;
+    counts[idx] += 1;
+  });
+
+  const data = sums.map((s, i) => (counts[i] ? s / counts[i] : 0));
+  const labels = Array.from({ length: bins }, (_, i) => {
+    if (i === 0) return formatLabel(start, period);
+    if (i === bins - 1) return formatLabel(now, period);
+    return '';
+  });
+
+  return { labels, datasets: [{ data, strokeWidth: 2 }] };
+};
 
 export default function PowerGraph() {
   const router = useRouter();
   const { deviceId } = useLocalSearchParams<{ deviceId: string }>();
-  const [timePeriod, setTimePeriod] = useState<'day' | 'month' | 'year'>('month');
+
+  const [timePeriod, setTimePeriod] = useState<Period>('month');
   const [chartData, setChartData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchReadings = async (): Promise<Reading[]> => {
-    try {
-      console.log('Querying API for deviceId:', deviceId);
-      const response = await fetch(`https://HVASee.azurewebsites.net/api/getColor?deviceId=${deviceId}`, {
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-      const result = await response.json();
-      
-      const data: Reading[] = Array.isArray(result) ? result : [result];
+  const fetchReadings = async (period: Period): Promise<AmpReading[]> => {
+    if (!deviceId) return [];
+    const db = getFirestore();
+    const now = new Date();
 
-      return data;
-    } catch (error) {
-      console.error("Error fetching readings from Azure:", error);
-      return [];
+    if (period === 'day') {
+      const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const teleRef = collection(db, 'devices', deviceId, 'telemetry');
+      const q = query(
+        teleRef,
+        where('ts', '>=', Timestamp.fromDate(since)),
+        orderBy('ts'),
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => {
+        const { ts, amp } = d.data() as { ts: Timestamp; amp: number };
+        return { ts: ts.toDate(), amp };
+      });
     }
+
+    const dailyRef = collection(db, 'devices', deviceId, 'daily');
+    const snap = await getDocs(dailyRef);
+    const limitMs = period === 'month' ? 30 * 24 * 60 * 60 * 1000 : 365 * 24 * 60 * 60 * 1000;
+    const since = new Date(now.getTime() - limitMs);
+
+    return snap.docs
+      .map((d) => {
+        const data = d.data() as { date?: string; ampAvg?: number };
+        const dateStr = data.date ?? d.id; 
+        const [y, m, day] = dateStr.split('-').map(Number);
+        const ts = new Date(Date.UTC(y, m - 1, day));
+        return { ts, amp: data.ampAvg ?? 0 };
+      })
+      .filter(({ ts }) => ts >= since && ts <= now);
   };
-  
 
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       setLoading(true);
-      const readings = await fetchReadings();
-      const processed = processReadings(readings, timePeriod);
-      setChartData(processed);
+      const readings = await fetchReadings(timePeriod);
+      setChartData(processReadings(readings, timePeriod));
       setLoading(false);
     };
-    loadData();
+    load();
   }, [deviceId, timePeriod]);
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* Header */}
       <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
         <View style={styles.headerBar}>
-          <Ionicons 
-            name="arrow-back"  
-            size={25} 
-            color="white"       
-            onPress={() => router.back()} 
-            style={styles.backButton} 
+          <Ionicons
+            name="arrow-back"
+            size={25}
+            color="white"
+            onPress={() => router.back()}
+            style={styles.backButton}
           />
           <Text style={styles.headerText}>
             <Text style={styles.headerBold}>HVA</Text>
@@ -182,6 +161,8 @@ export default function PowerGraph() {
           </Text>
         </View>
       </SafeAreaView>
+
+      {/* Body */}
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Power Consumption</Text>
         <View style={styles.filterButtons}>
@@ -195,11 +176,11 @@ export default function PowerGraph() {
           <View style={styles.graphContainer}>
             <LineChart
               data={chartData}
-              width={350}
+              width={Dimensions.get('window').width - 32}
               height={220}
               chartConfig={chartConfig}
               bezier
-              fromZero={true}
+              fromZero
               style={styles.chartStyle}
             />
           </View>
@@ -228,39 +209,18 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   backButton: { position: 'absolute', top: 20, left: 10, padding: 10 },
-  headerText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
+  headerText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
   headerBold: { fontWeight: 'bold' },
   headerItalic: { fontStyle: 'italic' },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginVertical: 10,
-  },
+  title: { fontSize: 24, fontWeight: 'bold', marginVertical: 10 },
   filterButtons: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '90%',
     marginBottom: 20,
   },
-  graphContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chartStyle: {
-    borderRadius: 16,
-    marginVertical: 8,
-  },
-  loadingIndicator: {
-    marginTop: 40,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ff3b30',
-    textAlign: 'center',
-    marginTop: 20,
-  },
+  graphContainer: { alignItems: 'center', justifyContent: 'center' },
+  chartStyle: { borderRadius: 16, marginVertical: 8 },
+  loadingIndicator: { marginTop: 40 },
+  errorText: { fontSize: 16, color: '#ff3b30', textAlign: 'center', marginTop: 20 },
 });
