@@ -9,10 +9,12 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  SafeAreaView,
   Alert,
   ActionSheetIOS,
 } from 'react-native';
 
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { BleManager } from 'react-native-ble-plx';
 import { Stack, router } from 'expo-router';
 import { Buffer } from 'buffer';
@@ -136,6 +138,7 @@ export default function BLEConnect() {
         }
       } else if (decodedValue[0] === "C") {
         setSuccessfullyConnectedWifi(decodedValue);
+        setWrongPassword(false);
       } else if (decodedValue[0] === "W") { // wrong password, go back to password selection and input
         console.log("Line 113ish: This is where I should put wrong pswd logic")
         setWrongPassword(true)
@@ -521,14 +524,54 @@ export default function BLEConnect() {
   };
 
   return (
-    <View style={styles.container}>
+    <>
+    <Stack.Screen options={{ title: 'HVASee' }} />
+      <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
+        <View style={styles.headerBar}>
+
+          <Text style={styles.headerText}>
+            <Text style={styles.headerBold}>HVA</Text>
+            <Text style={styles.headerItalic}>See</Text>
+          </Text>
+          
+            <Ionicons 
+                name="arrow-back"  
+                size={25}           
+                color="white"       
+                onPress={() => router.back()} 
+                style={styles.backButton} 
+              />
+          
+        </View>
+      </SafeAreaView>
+      <View style={styles.container}>
       {renderContent()}
-      {renderCancelButton()}
     </View>
+    </>
+
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 0 },
+  headerBar: {
+    backgroundColor: '#49aae6',
+    paddingTop: 5,
+    paddingBottom: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 70,
+    position: 'relative',
+  },
+  headerText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  headerBold: { fontWeight: 'bold' },
+  headerItalic: { fontStyle: 'italic' },
+  settingsButton: {
+    position: 'absolute',
+    right: 10,
+    top: 20,
+    padding: 5,
+  },
   container: {
     flex: 1,
     padding: 20,
@@ -581,6 +624,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     borderRadius: 8,
     backgroundColor: '#fff',
+  },
+  backButton: { 
+    position: 'absolute', 
+    top: 20, 
+    left: 10, 
+    padding: 10 
   },
   pickerContainer: {
     borderWidth: 1,

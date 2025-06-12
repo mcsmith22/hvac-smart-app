@@ -139,7 +139,7 @@ export default function DeviceInfoScreen() {
 
       const user = auth.currentUser;
       if (!user) {
-        console.error("No user signed in.");
+        // console.error("No user signed in.");
         return;
       }
       const db = getFirestore();
@@ -170,7 +170,7 @@ export default function DeviceInfoScreen() {
 
       setDeviceInfo(latestDevice);
     } catch (error) {
-      console.error('Error fetching device info:', error);
+      // console.error('Error fetching device info:', error);
     } finally {
       setLoading(false);
     }

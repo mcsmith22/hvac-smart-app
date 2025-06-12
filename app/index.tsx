@@ -50,7 +50,7 @@ export default function LoginScreen() {
       setErrorMessage('');
       router.push('/home');
     } catch (error: any) {
-      console.error('Login error:', error);
+      // console.error('Login error:', error);
       setErrorMessage(parseAuthError(error.code));
     }
   };

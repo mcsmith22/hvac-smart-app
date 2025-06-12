@@ -8,14 +8,16 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include "EmonLib.h"
 #include <ble_callbacks.h>
 #include <arduino_secrets.h>
 
-// ----- WiFi Credentials -----
-struct WifiCredential {
+// ----- WiFi Credential s -----
+struct WifiCredential { 
   const char* ssid;
   const char* password;
 };
+
 WifiCredential wifis[] = {
   {"Austin’s iPhone 16", "jifspoon"},
   {" Unit1507", "Unit1507@2024"}
@@ -30,23 +32,26 @@ String getCategoryInfo();
 String classifyColor(uint8_t r, uint8_t g, uint8_t b);
 uint8_t scaleTo8bit(uint16_t value, uint16_t max_value = 65535);
 String runColorDetection(uint8_t addr);
-String runFlashDetection(uint8_t addr);
-float runGasDetection();
-float runAmpDetection();
+String runFlashDetectionRaw(uint8_t addr);
+int runGasDetection();
+double runAmpDetection();
 uint8_t setupWhenWifiConnected();
 
 // Define statements
 #define WIFI_CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8" // we can change this with any generated verion 4 uuid (randomly geneerated)
 #define LED_PIN 8       
 #define NUM_LEDS 1      
+// For current sensor
+#define ADC_INPUT 5
+#define ADC_BITS 10
+#define ADC_COUNTS (1 << ADC_BITS)
 
 // RGB LED Control Setup
 Adafruit_NeoPixel rgb_led(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+// String lastSequence = "short long";
 
 // Amp Sesnor Setup
-Adafruit_ADS1115 ads;
-const float FACTOR = 100; //20A/1V from the CT
-const float multiplier = 0.00005;
+EnergyMonitor emon1;
 
 // Gas Sensor Setup
 const float GAS_THRESHOLD = 0.0;  
@@ -58,12 +63,12 @@ String wifiNetworks = "";
 
 // RGB Sensor Setup
 uint8_t sensorAddr;
-
 struct ColorData {
   uint16_t r;
   uint16_t g;
   uint16_t b;
 };
+
 
 String getFormattedDate() {
   time_t now;
@@ -147,11 +152,13 @@ String runColorDetection(uint8_t addr) {
   return color_name;
 }
 
-// (Optional) Flash detection function, similar in style
-String runFlashDetection(uint8_t addr) {
-  int on_for = 0;
-  String flash_sequence = "";
-  while (true) {
+String runFlashDetectionRaw(uint8_t addr) {
+  Serial.println("Running flash detection (RAW)");
+  String flash_samples = "[";
+  unsigned long startTime = millis(); // millis() reads the # of milliseconds passed since the arduino board began running the current program. This overflows back to 0 after 50 days of runtime. This will be an issue.
+  int sampleCount = 0;
+
+  while (millis() - startTime < 8000) { // collect data for 8 seconds.  This is where the 50 days overflow will go wrong I think. This was a dumb way to do this.
     uint8_t raw_data[6];
     Wire.beginTransmission(addr);
     Wire.write(0x09);
@@ -161,107 +168,57 @@ String runFlashDetection(uint8_t addr) {
     while (Wire.available() && index < 6) {
       raw_data[index++] = Wire.read();
     }
+
     uint16_t g_value = ((uint16_t)raw_data[1] << 8) | raw_data[0];
     uint16_t r_value = ((uint16_t)raw_data[3] << 8) | raw_data[2];
     uint16_t b_value = ((uint16_t)raw_data[5] << 8) | raw_data[4];
     uint8_t r_8bit = scaleTo8bit(r_value);
     uint8_t g_8bit = scaleTo8bit(g_value);
     uint8_t b_8bit = scaleTo8bit(b_value);
-    
-    if (r_8bit > 30 && g_8bit > 30 && b_8bit > 30) {
-      on_for++;
-    } else {
-      if (on_for > 0) {
-        if (on_for > 10) {
-          if (flash_sequence.length() > 0) {
-            flash_sequence += " long";
-          }
-        } else {
-          if (flash_sequence.endsWith("short")) {
-            flash_sequence += " short";
-          } else {
-            // Serial.println("Short flash detected");
-            if (flash_sequence.length() > 0) {
-              Serial.println(flash_sequence);
-              return flash_sequence;
-            }
 
-            flash_sequence = "short";
-          }
-        }
-        on_for = 0;
-      }
-    }
-    delay(50);
-  }
-}
+    // Serial.println("R " + String(r_8bit));
+    // Serial.println("G " + String(g_8bit));
+    // Serial.println("B " + String(b_8bit));
 
-float runAmpDetection() {
-  float voltage;
-  float current;
-  float sum = 0;
-  long time_check = millis();
-  int counter = 0;
+    int brightness = r_8bit + g_8bit + b_8bit;
+    int time = sampleCount * 50;
 
-  while (millis() - time_check < 1000)
-  {
-    // voltage = ads.readADC_Differential_0_1() * multiplier;
-    voltage = analogRead(1) * multiplier;
-    current = voltage * FACTOR;
-    //current /= 1000.0;
+    // Append to JSON-like array
+    if (sampleCount > 0) flash_samples += ",";
+    flash_samples += "{\"t\":" + String(time) + ",\"b\":" + String(brightness) + "}";
 
-    sum += sq(current);
-    counter = counter + 1;
+    sampleCount++;
+    delay(50);  // 20 samples per second
   }
 
-  current = sqrt(sum / counter);
-  return (current);
-  // return 0.0;
+  flash_samples += "]";
+  Serial.println("Collected flash samples:");
+  Serial.println(flash_samples);
+
+  return flash_samples;
 }
 
-float runGasDetection() {
+double runAmpDetection() {
+  double amps = emon1.calcIrms(1480);
+  Serial.print("Current: ");
+  Serial.print(amps, 2);
+  Serial.println(" A");
+  return amps;
+}
+
+int runGasDetection() {
   // Read sensor value and compute voltage
   int sensorValue = analogRead(0); // sensorpin is set to 0
-  float sensor_volt = (sensorValue / 1024.0) * 5.0;
-  
-  // Calculate the sensor resistance in gas (RS_gas) using the voltage divider formula
-  // Note: This assumes a 5V supply and a properly chosen load resistor.
-  float RS_gas = (5.0 - sensor_volt) / sensor_volt;  
-  // Calculate the ratio of RS_gas to the calibrated baseline R0
-  float ratio = RS_gas / R0;  
-  
-  // Print sensor details
-  Serial.print("Sensor Voltage = ");
-  Serial.print(sensor_volt);
-  Serial.println(" V");
-  Serial.print("RS_gas = ");
-  Serial.println(RS_gas);
-  Serial.print("RS_gas / R0 = ");
-  Serial.println(ratio);
-  Serial.println();
-  return ratio; // if this is below 0 we want to return that theres a dangerous amount of C0
-  // Compare the ratio against the threshold.
-  // If the ratio exceeds the threshold, turn on the LED to signal a dangerous condition.
-  if (ratio < GAS_THRESHOLD) {
-    Serial.println("ALARM: Gas concentration high! ratio: ");
-    Serial.print(ratio);
-  } else {
-
-    Serial.print("u all good bro, (ratio, threshhold) = (");
-    Serial.print(ratio);
-    Serial.print(", ");
-    Serial.print(GAS_THRESHOLD);
-    Serial.println(")");
-  }
+  Serial.println("The gas value is " + String(sensorValue));
+  return sensorValue;
 }
 
 uint8_t setupWhenWifiConnected() { // mostly just the setup for sensor code to do once wifi connection has been establoished, just the stuff I want to run once instead of loop
   // ads.setGain(GAIN_FOUR); // +/- 1.024V 1bit = 0.5mV for Matthew's sensor, this conflicts with austin's pin
   // ads.begin(); // for the current sensor connected to the I2C bus
   // Wire.begin(); // for the gas sensor connected to pin 0
-  rgb_led.setPixelColor(0, rgb_led.Color(0, 0, 0));
-  rgb_led.show();
-  BLEDevice::deinit(true);
+  Serial.println("Setting up");
+  
   Wire.begin(6, 7); // for the rgb sensors conenctec to pins 6 and 7
   // Configure time using NTP
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
@@ -282,36 +239,48 @@ uint8_t setupWhenWifiConnected() { // mostly just the setup for sensor code to d
       sensorAddr = a;
       break;
     }
-    // Serial.println("End transmission return: " + result);
   }
+
   if (sensorAddr == 0) {
     Serial.println("No I2C devices found.");
     return 0;
+  } else {
+    Serial.println("Sensor found at " + sensorAddr);
   }
 
-  // Set sensor register to enable RGB reading (write 0x05 to register 0x01)
   Wire.beginTransmission(sensorAddr);
   Wire.write(0x01);
   Wire.write(0x05);
   Wire.endTransmission();
 
+  analogReadResolution(ADC_BITS);  // Use 10-bit ADC for compatibility with EmonLib
+
+  emon1.current(ADC_INPUT, 20.0);  // Initialize CT sensor on GPIO34 with calibration for 20A/V
+
+  Serial.println("Current monitor initialized.");
+  sensorAddr = sensorAddr;
   return sensorAddr;
 }
 
 // ----- Setup & Main Loop -----
 void setup() {
   Serial.begin(115200);
-  Serial.println("-------------------Setup Done------------------------");
+  Serial.print("------------------Setup started----------------------");
+  // WiFi.begin("Austin’s iPhone 16", "jifspoon");
+
+  // while (WiFi.status() != WL_CONNECTED) {
+  //   delay(1000);
+  //   Serial.println("Connecting...");
+  // }
   
   rgb_led.begin();
   rgb_led.setPixelColor(0, rgb_led.Color(45, 32, 0)); // initial yellow
   rgb_led.show();
   Serial.println("setting up  ble");
-  BLEDevice::init("HVASEE Sensor"); // Set device name
+  BLEDevice::init("HVASee Sensor"); // Set device name
   
-  // Create BLE server and set callbacks for connection events
+  // Create a BLE server and set callbacks for connection events
   BLEServer *pServer = BLEDevice::createServer();
-
   pServer->setCallbacks(new MyServerCallbacks());
   
   //reate a BLE service
@@ -336,23 +305,23 @@ void setup() {
   BLEDevice::startAdvertising();
   
   Serial.println("BLE advertising started. Waiting for a client to connect...");
-
-  // setupWhenWifiConnected();
+  Serial.println("-------------------Setup Done------------------------");
 }
-bool alreadySetupAfterWifiConnect = false; // This is honestly fucking stupid but its how im making sure setupWhenWifiConnected() is only called once
+
+// bool alreadySetupAfterWifiConnect = false; This is lowkey dumb as hell but its the way that I am ensuring that setupWhenWifiConnected only runs once
 void loop() {
-  if (getSetupWhenWifiConnected() == true && alreadySetupAfterWifiConnect == false) {
-    sensorAddr = setupWhenWifiConnected();
-    alreadySetupAfterWifiConnect = true;
-    Serial.println("BOOOOOM BOOOOOOM BOOOOM BOOMMMMM");
-  }
   // Start the color detection loop (this function runs indefinitely)
+  // if (getSetupWhenWifiConnected() == true && alreadySetupAfterWifiConnect == false) {
+  //   sensorAddr = setupWhenWifiConnected();
+  //   alreadySetupAfterWifiConnect = true;
+  // }
+
   if (WiFi.status() == WL_CONNECTED && sensorAddr != 0) { 
-    Serial.println("Sensor found at: " + sensorAddr);
-    String flashSequence = runFlashDetection(sensorAddr);
-    float gasValue = runGasDetection();
-    float ampMeasurement = runAmpDetection();
-    String colorName = runColorDetection(sensorAddr);
+    Serial.println("RGB Sensor found at: " + sensorAddr);
+    String flashSequence = runFlashDetectionRaw(sensorAddr);
+    int gasValue = runGasDetection();
+    double ampMeasurement = runAmpDetection();
+    // String colorName = runColorDetection(sensorAddr);
 
     String formattedDate = getFormattedDate();
 
@@ -360,8 +329,10 @@ void loop() {
     http.begin(FUNCTION_URL);
     http.addHeader("Content-Type", "application/json");
     String body = "{\"id\":\"testArduino-" + formattedDate + "\", \"date_of_req\": \"" + formattedDate +
-                  "\", \"deviceId\": \"testArduino\", \"color\": \"" + colorName + "\", \"flash_sequence\": \"" + flashSequence +
-                  "\", \"amp_measurement\": \"" + ampMeasurement + "\", \"gas_value\": \"" + gasValue + "\", \"unit_type\": \"carrier\", \"userId\": \"fZUfNhLtujW7JzJPcS8UGCZt9gs2\"}";
+                  "\", \"deviceId\": \"testArduino\", \"color\": \"None\", \"flash_sequence\": \"" + flashSequence +
+                  "\", \"amp_measurement\": \"" + ampMeasurement + "\", \"gas_value\": \"" + gasValue + 
+                  "\", \"unit_type\": \"carrier\", \"userId\": \"fZUfNhLtujW7JzJPcS8UGCZt9gs2\"}";
+
     Serial.println("Body: " + body);
     
     int httpResponseCode = http.POST(body);
@@ -374,12 +345,9 @@ void loop() {
       Serial.println("HTTP request error");
     }
     http.end();
-
-    delay(5000);
-    // }
   } else if (WiFi.status() == WL_CONNECTED) {
     Serial.println("Sensor not found");
-    delay(500);
+    delay(200);
+    setupWhenWifiConnected();
   }
-
 }

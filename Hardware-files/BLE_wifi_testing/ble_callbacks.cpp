@@ -110,7 +110,7 @@ void MyCharacteristicCallbacks::onWrite(BLECharacteristic* pCharacteristic) {
         WiFi.begin(ssid, pswd);
         int counter = 0;
         while (WiFi.status() != WL_CONNECTED) {
-          if (counter > 10) { // arbitrary limit to give enough time before deciding its not going to connect
+          if (counter > 20) { // arbitrary limit to give enough time before deciding its not going to connect
               break; // probably wont cponnect
           } else {
             Serial.println(".");
@@ -129,7 +129,7 @@ void MyCharacteristicCallbacks::onWrite(BLECharacteristic* pCharacteristic) {
         Serial.println(send);
         pCharacteristic->setValue(send.c_str());
         delay(300);
-        Serial.println("Disconnecting from BLE...");
+        // Serial.println("Disconnecting from BLE...");
         // add functionality to disconnect from bleutooth
         Serial.println(pCharacteristic->getValue());
         pCharacteristic->notify();

@@ -137,7 +137,7 @@ export default function PowerGraph() {
   const fetchReadings = async (): Promise<Reading[]> => {
     try {
       console.log('Querying API for deviceId:', deviceId);
-      const response = await fetch(`https://HVASee.azurewebsites.net/api/getColor?deviceId=${deviceId}`, {
+      const response = await fetch(`https://HVASee.azurewebsites.net/api/GetAmps?deviceId=${deviceId}`, {
         headers: { 'Content-Type': 'application/json' },
       });
       if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
