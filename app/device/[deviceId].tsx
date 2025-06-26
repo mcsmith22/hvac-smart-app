@@ -6,6 +6,7 @@ import {
   ScrollView,
   Text,
   View,
+  Dimensions,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import tw from "twrnc";
@@ -186,6 +187,12 @@ const status: SystemStatus = deriveStatus(
   const lastUpdated = latest
     ? new Date(latest.ts.toDate()).toLocaleTimeString()
     : "--";
+
+  const now = new Date();
+  const start = new Date(now.getTime() - 24*60*60*1000);
+
+  const { width: screenW } = Dimensions.get("window");
+  const chartW = screenW - 24 - 32;
 
   const gasData = history.map((h) => ({
     x: new Date(h.ts.toDate()),
@@ -386,9 +393,11 @@ const status: SystemStatus = deriveStatus(
             <VictoryChart
               theme={VictoryTheme.material}
               height={200}
+              width={chartW}
               padding={{ left: 40, right: 20, top: 10, bottom: 30 }}
               domainPadding={{ y: 10 }}
-              theme={VictoryTheme.material}
+              scale={{ x: "time" }}
+              domain={{ x: [start, now] }}
               groupComponent={
                 <VictoryClipContainer clipPadding={{ top: 0, right: 0, bottom: 0, left: 0 }} />
               }
@@ -427,9 +436,11 @@ const status: SystemStatus = deriveStatus(
             <VictoryChart
               theme={VictoryTheme.material}
               height={200}
+              width={chartW}
               padding={{ left: 40, right: 20, top: 10, bottom: 30 }}
               domainPadding={{ y: 10 }}
-              theme={VictoryTheme.material}
+              scale={{ x: "time" }}
+              domain={{ x: [start, now] }}
               groupComponent={
                 <VictoryClipContainer clipPadding={{ top: 0, right: 0, bottom: 0, left: 0 }} />
               }
