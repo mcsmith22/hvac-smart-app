@@ -27,16 +27,16 @@ export default function RootLayout() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#49aae6' }} edges={['left', 'right']}>
-      <Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
+      <Stack screenOptions={{ headerShown: false, gestureEnabled: false, animation: "none", }}>
         {user ? (
           <>
-            <Stack.Screen name="home" options={{ animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="bleconnect" />
+            <Stack.Screen name="home" options={{ animation: 'none' }} />
+            <Stack.Screen name="bleconnect" options={{ animation: 'none' }} />
           </>
         ) : (
           <>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="signup" />
+            <Stack.Screen name="index" options={{ animation: 'none' }} />
+            <Stack.Screen name="signup" options={{ animation: 'none' }} />
           </>
         )}
       </Stack>
