@@ -1,263 +1,372 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
-  SafeAreaView,
-  View,
+  Alert,
+  Modal,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  Modal
-} from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { auth } from '../.expo/config/firebase';
+  View,
+  SafeAreaView,
+} from "react-native";
+import { Stack, useRouter, useSegments } from "expo-router";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import tw from "twrnc";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  EmailAuthProvider,
   updateEmail,
   updatePassword,
   signOut,
   deleteUser,
   reauthenticateWithCredential,
-  EmailAuthProvider
-} from 'firebase/auth';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+} from "firebase/auth";
+import { auth } from "../src/config/firebase";
+
+const tabs = [
+  { name: "Home", icon: "home", route: "/home" },
+  { name: "Devices", icon: "list", route: "/devices" },
+  { name: "Power", icon: "stats-chart", route: "/powergraphs" },
+  { name: "Alerts", icon: "notifications", route: "/alerts" },
+  { name: "Settings", icon: "settings", route: "/settings" },
+] as const;
+
+const BottomNav = () => {
+  const router = useRouter();
+  const segs = useSegments();
+  const current = `/${segs.join("/")}`;
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View
+      style={[
+        tw`flex-row justify-between bg-[#1C1C1E] px-4`,
+        { paddingBottom: insets.bottom + 6, paddingTop: 6 },
+      ]}
+    >
+      {tabs.map((t) => {
+        const active = current.startsWith(t.route);
+        return (
+          <TouchableOpacity
+            key={t.route}
+            style={tw`flex-1 items-center`}
+            onPress={() => !active && router.replace(t.route)}
+          >
+            <Ionicons
+              name={t.icon}
+              size={22}
+              color={active ? "#0A84FF" : "#8E8E93"}
+            />
+            <Text
+              style={tw`text-xs ${
+                active ? "text-blue-500" : "text-gray-400"
+              }`}
+            >
+              {t.name}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
+
+const Card = ({ children }: any) => (
+  <View style={[tw`mb-6 p-5 rounded-3xl`, { backgroundColor: "#1C1C1E" }]}>
+    {children}
+  </View>
+);
+const Label = ({ children }: any) => (
+  <Text style={tw`text-sm font-semibold text-gray-300 mb-2`}>{children}</Text>
+);
+const Input = (props: any) => (
+  <TextInput
+    placeholderTextColor="#777"
+    {...props}
+    style={[
+      tw`mb-4 px-4 py-3 rounded-2xl text-white border`,
+      { borderColor: "#333", backgroundColor: "#111113" },
+      props.style,
+    ]}
+  />
+);
+const Btn = ({
+  title,
+  onPress,
+  color = "#0A84FF",
+}: {
+  title: string;
+  onPress: () => void;
+  color?: string;
+}) => (
+  <TouchableOpacity
+    onPress={onPress}
+    style={[
+      tw`mt-2 py-3 rounded-2xl items-center`,
+      { backgroundColor: color },
+    ]}
+  >
+    <Text style={tw`text-white font-semibold`}>{title}</Text>
+  </TouchableOpacity>
+);
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const currentUser = auth.currentUser;
+  const user = auth.currentUser;
 
-  const [currentPasswordForEmail, setCurrentPasswordForEmail] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [showCurrentPasswordForEmail, setShowCurrentPasswordForEmail] = useState(false);
+  const [curPwEmail, setCurPwEmail] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [showCurPwEmail, setShowCurPwEmail] = useState(false);
 
-  const [currentPasswordForPassword, setCurrentPasswordForPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [showCurrentPasswordForPassword, setShowCurrentPasswordForPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [curPwPwd, setCurPwPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [showCurPwPwd, setShowCurPwPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfPwd, setShowConfPwd] = useState(false);
 
-  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
+  const [delModal, setDelModal] = useState(false);
+  const [delText, setDelText] = useState("");
 
-  const reauthenticate = async (currentPassword: string) => {
-    if (!currentUser || !currentUser.email) return;
-    const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
-    await reauthenticateWithCredential(currentUser, credential);
+  const reauth = async (pw: string) => {
+    if (!user || !user.email) return;
+    const cred = EmailAuthProvider.credential(user.email, pw);
+    await reauthenticateWithCredential(user, cred);
   };
 
   const handleUpdateEmail = async () => {
     try {
-      if (!currentUser) return;
-      if (!newEmail.trim() || !currentPasswordForEmail) {
-        Alert.alert('Input Error', 'Please provide both your current password and new email.');
+      if (!user) return;
+      if (!curPwEmail || !newEmail.trim()) {
+        Alert.alert("Missing info", "Enter your current password and new e‑mail");
         return;
       }
-      await reauthenticate(currentPasswordForEmail);
-      await updateEmail(currentUser, newEmail.trim());
-      Alert.alert('Success', 'Email updated successfully.');
-      setCurrentPasswordForEmail('');
-      setNewEmail('');
-    } catch (error: any) {
-      Alert.alert('Error updating email', error.message);
+      await reauth(curPwEmail);
+      await updateEmail(user, newEmail.trim());
+      Alert.alert("Success", "E‑mail updated");
+      setCurPwEmail("");
+      setNewEmail("");
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
     }
   };
 
   const handleUpdatePassword = async () => {
     try {
-      if (!currentUser) return;
-      if (!currentPasswordForPassword || !newPassword || !confirmNewPassword) {
-        Alert.alert('Input Error', 'Please fill out all password fields.');
+      if (!user) return;
+      if (!curPwPwd || !newPwd || !confirmPwd) {
+        Alert.alert("Missing info", "Fill in all password fields");
         return;
       }
-      if (newPassword !== confirmNewPassword) {
-        Alert.alert('Mismatch', 'New Password and Confirm New Password do not match.');
+      if (newPwd !== confirmPwd) {
+        Alert.alert("Mismatch", "New passwords don’t match");
         return;
       }
-      await reauthenticate(currentPasswordForPassword);
-      await updatePassword(currentUser, newPassword);
-      Alert.alert('Success', 'Password updated successfully.');
-      setCurrentPasswordForPassword('');
-      setNewPassword('');
-      setConfirmNewPassword('');
-    } catch (error: any) {
-      Alert.alert('Error updating password', error.message);
+      await reauth(curPwPwd);
+      await updatePassword(user, newPwd);
+      Alert.alert("Success", "Password updated");
+      setCurPwPwd("");
+      setNewPwd("");
+      setConfirmPwd("");
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
     }
   };
 
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      router.replace('/');
-    } catch (error: any) {
-      Alert.alert('Error signing out', error.message);
+      router.replace("/");
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
     }
   };
 
-  const handleDeleteAccount = async () => {
+  const handleDelete = async () => {
     try {
-      await deleteUser(currentUser!);
-      Alert.alert('Account Deleted', 'Your account has been deleted.');
-      router.replace('/');
-    } catch (error: any) {
-      Alert.alert('Error deleting account', error.message);
-    }
-  };
-
-  const openDeleteModal = () => {
-    setDeleteConfirmationText('');
-    setDeleteModalVisible(true);
-  };
-
-  const confirmDelete = () => {
-    if (deleteConfirmationText.trim() === 'DELETE') {
-      setDeleteModalVisible(false);
-      handleDeleteAccount();
-    } else {
-      Alert.alert('Confirmation Error', 'Please type DELETE to confirm account deletion.');
+      await deleteUser(user!);
+      router.replace("/");
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
     }
   };
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ title: "Settings", animation: "none" }} />
 
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={25} color="white" />
+      <SafeAreaView style={tw`flex-0 bg-black`} edges={["top", "left", "right"]}>
+        <View
+          style={[
+            tw`flex-row items-center px-4 py-3`,
+            { backgroundColor: "#0C0C0E" },
+          ]}
+        >
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
-          <Text style={styles.headerText}>
-            <Text style={styles.headerBold}>HVA</Text>
-            <Text style={styles.headerItalic}>See</Text>
+          <Text style={tw`flex-1 text-center text-2xl font-extrabold text-white`}>
+            Settings
           </Text>
-          <Text style={styles.headerHome}>Settings</Text>
+          <View style={tw`w-6`} />
         </View>
       </SafeAreaView>
 
-      <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.contentContainer}>
-          <Text style={styles.title}>Account Settings</Text>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Update Email</Text>
-
-            <Text style={styles.label}>Current Password</Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                secureTextEntry={!showCurrentPasswordForEmail}
-                value={currentPasswordForEmail}
-                onChangeText={setCurrentPasswordForEmail}
-                placeholder="Enter current password"
+      <SafeAreaView style={tw`flex-1 bg-black`} edges={["left", "right"]}>
+        <ScrollView contentContainerStyle={tw`p-6 pb-24`}>
+          <Card>
+            <Text style={tw`text-lg font-semibold text-white mb-4`}>Update E‑mail</Text>
+            <Label>Current password</Label>
+            <View>
+              <Input
+                secureTextEntry={!showCurPwEmail}
+                value={curPwEmail}
+                onChangeText={setCurPwEmail}
+                placeholder="••••••••"
               />
-              <TouchableOpacity onPress={() => setShowCurrentPasswordForEmail(prev => !prev)} style={styles.eyeButton}>
-                <Ionicons name={showCurrentPasswordForEmail ? 'eye-off' : 'eye'} size={20} color="#49aae6" />
+              <TouchableOpacity
+                style={tw`absolute right-3 top-3.5`}
+                onPress={() => setShowCurPwEmail((v) => !v)}
+              >
+                <Ionicons
+                  name={showCurPwEmail ? "eye-off" : "eye"}
+                  size={20}
+                  color="#8E8E93"
+                />
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.label}>New Email</Text>
-            <TextInput
-              style={styles.input}
+            <Label>New e‑mail</Label>
+            <Input
               value={newEmail}
               onChangeText={setNewEmail}
-              placeholder="Enter new email"
+              placeholder="name@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
             />
-            <TouchableOpacity style={styles.button} onPress={handleUpdateEmail}>
-              <Text style={styles.buttonText}>Update Email</Text>
-            </TouchableOpacity>
-          </View>
+            <Btn title="Save" onPress={handleUpdateEmail} />
+          </Card>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Update Password</Text>
-            
-            <Text style={styles.label}>Current Password</Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                secureTextEntry={!showCurrentPasswordForPassword}
-                value={currentPasswordForPassword}
-                onChangeText={setCurrentPasswordForPassword}
-                placeholder="Enter current password"
+          <Card>
+            <Text style={tw`text-lg font-semibold text-white mb-4`}>Update Password</Text>
+            <Label>Current password</Label>
+            <View>
+              <Input
+                secureTextEntry={!showCurPwPwd}
+                value={curPwPwd}
+                onChangeText={setCurPwPwd}
+                placeholder="••••••••"
               />
-              <TouchableOpacity onPress={() => setShowCurrentPasswordForPassword(prev => !prev)} style={styles.eyeButton}>
-                <Ionicons name={showCurrentPasswordForPassword ? 'eye-off' : 'eye'} size={20} color="#49aae6" />
+              <TouchableOpacity
+                style={tw`absolute right-3 top-3.5`}
+                onPress={() => setShowCurPwPwd((v) => !v)}
+              >
+                <Ionicons
+                  name={showCurPwPwd ? "eye-off" : "eye"}
+                  size={20}
+                  color="#8E8E93"
+                />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>New Password</Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                secureTextEntry={!showNewPassword}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                placeholder="Enter new password"
+            <Label>New password</Label>
+            <View>
+              <Input
+                secureTextEntry={!showNewPwd}
+                value={newPwd}
+                onChangeText={setNewPwd}
+                placeholder="At least 6 chars"
               />
-              <TouchableOpacity onPress={() => setShowNewPassword(prev => !prev)} style={styles.eyeButton}>
-                <Ionicons name={showNewPassword ? 'eye-off' : 'eye'} size={20} color="#49aae6" />
+              <TouchableOpacity
+                style={tw`absolute right-3 top-3.5`}
+                onPress={() => setShowNewPwd((v) => !v)}
+              >
+                <Ionicons
+                  name={showNewPwd ? "eye-off" : "eye"}
+                  size={20}
+                  color="#8E8E93"
+                />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>Confirm New Password</Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                secureTextEntry={!showConfirmNewPassword}
-                value={confirmNewPassword}
-                onChangeText={setConfirmNewPassword}
-                placeholder="Confirm new password"
+            <Label>Confirm new password</Label>
+            <View>
+              <Input
+                secureTextEntry={!showConfPwd}
+                value={confirmPwd}
+                onChangeText={setConfirmPwd}
+                placeholder="Repeat new password"
               />
-              <TouchableOpacity onPress={() => setShowConfirmNewPassword(prev => !prev)} style={styles.eyeButton}>
-                <Ionicons name={showConfirmNewPassword ? 'eye-off' : 'eye'} size={20} color="#49aae6" />
+              <TouchableOpacity
+                style={tw`absolute right-3 top-3.5`}
+                onPress={() => setShowConfPwd((v) => !v)}
+              >
+                <Ionicons
+                  name={showConfPwd ? "eye-off" : "eye"}
+                  size={20}
+                  color="#8E8E93"
+                />
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.button} onPress={handleUpdatePassword}>
-              <Text style={styles.buttonText}>Update Password</Text>
-            </TouchableOpacity>
-          </View>
+            <Btn title="Save" onPress={handleUpdatePassword} />
+          </Card>
 
-          <View style={styles.section}>
-            <TouchableOpacity style={[styles.button, styles.signOutButton]} onPress={handleSignOut}>
-              <Text style={styles.buttonText}>Sign Out</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <TouchableOpacity style={[styles.button, styles.deleteButton]} onPress={openDeleteModal}>
-              <Text style={styles.buttonText}>Delete Account</Text>
-            </TouchableOpacity>
-          </View>
-
+          <Btn title="Sign out" onPress={handleSignOut} color="#FF453A" />
+          <Btn
+            title="Delete account"
+            onPress={() => setDelModal(true)}
+            color="#FF3B30"
+          />
         </ScrollView>
       </SafeAreaView>
 
+      <BottomNav />
+
       <Modal
-        animationType="slide"
-        transparent={true}
-        visible={deleteModalVisible}
-        onRequestClose={() => setDeleteModalVisible(false)}
+        transparent
+        animationType="fade"
+        visible={delModal}
+        onRequestClose={() => setDelModal(false)}
       >
-        <View style={modalStyles.modalOverlay}>
-          <View style={modalStyles.modalContainer}>
-            <Text style={modalStyles.modalTitle}>Confirm Account Deletion</Text>
-            <Text style={modalStyles.modalText}>Type DELETE to confirm:</Text>
-            <TextInput
-              style={modalStyles.modalInput}
-              value={deleteConfirmationText}
-              onChangeText={setDeleteConfirmationText}
+        <View style={tw`flex-1 bg-black/60 items-center justify-center px-8`}>
+          <View
+            style={[
+              tw`w-full p-6 rounded-3xl`,
+              { backgroundColor: "#1C1C1E" },
+            ]}
+          >
+            <Text style={tw`text-xl font-semibold text-white mb-2`}>
+              Confirm deletion
+            </Text>
+            <Text style={tw`text-sm text-gray-300 mb-4`}>
+              Type <Text style={tw`text-red-400 font-bold`}>DELETE</Text> to
+              permanently remove your account.
+            </Text>
+            <Input
+              value={delText}
+              onChangeText={setDelText}
               placeholder="DELETE"
               autoCapitalize="characters"
             />
-            <View style={modalStyles.modalButtons}>
-              <TouchableOpacity style={modalStyles.modalButton} onPress={() => setDeleteModalVisible(false)}>
-                <Text style={modalStyles.modalButtonText}>Cancel</Text>
+            <View style={tw`flex-row justify-end`}>
+              <TouchableOpacity
+                onPress={() => setDelModal(false)}
+                style={tw`px-4 py-2 mr-2`}
+              >
+                <Text style={tw`text-gray-300`}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[modalStyles.modalButton, modalStyles.modalDeleteButton]} onPress={confirmDelete}>
-                <Text style={modalStyles.modalButtonText}>Confirm</Text>
+              <TouchableOpacity
+                onPress={() =>
+                  delText.trim() === "DELETE"
+                    ? (setDelModal(false), handleDelete())
+                    : Alert.alert("Type DELETE to confirm")
+                }
+                style={[
+                  tw`px-4 py-2 rounded-2xl`,
+                  { backgroundColor: "#FF3B30" },
+                ]}
+              >
+                <Text style={tw`text-white font-semibold`}>Confirm</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -266,44 +375,3 @@ export default function SettingsScreen() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  safeArea: { flex: 0, backgroundColor: '#49aae6' },
-  contentContainer: { padding: 20 },
-  title: { fontSize: 26, fontWeight: 'bold', marginBottom: 20, alignSelf: 'center' },
-  section: { marginBottom: 30, backgroundColor: '#f7f7f7', padding: 16, borderRadius: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12, color: '#333' },
-  label: { fontSize: 16, fontWeight: '600', marginBottom: 6, color: '#555' },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 8, marginBottom: 12, fontSize: 16, backgroundColor: '#fff' },
-  passwordContainer: { flexDirection: 'row', alignItems: 'center', position: 'relative', marginBottom: 12 },
-  passwordInput: { flex: 1, paddingRight: 40 },
-  eyeButton: { 
-    position: 'absolute', 
-    right: 10, 
-    top: '50%', 
-    transform: [{ translateY: -15 }]
-  },
-  button: { backgroundColor: '#49aae6', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 4 },
-  signOutButton: { backgroundColor: '#ff3b30' },
-  deleteButton: { backgroundColor: '#ff3b30' },
-  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  headerBar: { backgroundColor: '#49aae6', paddingTop: 5, paddingBottom: 5, justifyContent: 'center', alignItems: 'center', height: 70, position: 'relative' },
-  backButton: { position: 'absolute', top: 20, left: 10, padding: 10 },
-  headerText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
-  headerBold: { fontWeight: 'bold' },
-  headerItalic: { fontStyle: 'italic' },
-  headerHome: { fontSize: 16, color: '#fff', marginTop: 0 },
-});
-
-const modalStyles = StyleSheet.create({
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContainer: { width: '80%', backgroundColor: '#fff', borderRadius: 8, padding: 20, alignItems: 'center' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
-  modalText: { fontSize: 16, marginBottom: 12 },
-  modalInput: { width: '100%', borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 20 },
-  modalButtons: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-  modalButton: { flex: 1, padding: 10, alignItems: 'center' },
-  modalDeleteButton: { backgroundColor: '#ff3b30', borderRadius: 8 },
-  modalButtonText: { color: '#fff', fontWeight: 'bold' },
-});

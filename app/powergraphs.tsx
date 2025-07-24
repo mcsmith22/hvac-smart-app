@@ -23,7 +23,7 @@ import {
   where,
   doc,
 } from "firebase/firestore";
-import { auth } from "../.expo/config/firebase";
+import { auth } from "../src/config/firebase";
 
 interface Telemetry {
   ts: Timestamp;
@@ -275,14 +275,14 @@ const handleExport = async () => {
               bg="#1A1206"
             />
 
-            <TrendCard
+            {/* <TrendCard
               title="Gas Levels"
               unit="PPM"
               latest={lastGas}
               color="#30D158"
               data={gas}
               bg="#002015"
-            />
+            /> */}
             <View style={tw`h-12`} />
           </View>
         </ScrollView>

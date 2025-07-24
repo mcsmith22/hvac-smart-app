@@ -22,7 +22,7 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { auth } from "../.expo/config/firebase";
+import { auth } from "../src/config/firebase";
 
 type Level = "critical" | "warning" | "info";
 interface AlertDoc {

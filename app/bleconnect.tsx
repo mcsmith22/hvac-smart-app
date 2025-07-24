@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,177 +12,67 @@ import {
   Alert,
   SafeAreaView,
   ActionSheetIOS,
-} from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { BleManager } from 'react-native-ble-plx';
-import { Stack, router } from 'expo-router';
-import { Buffer } from 'buffer';
-import { scanNetworks } from './wificonnections';
-import { auth } from '../.expo/config/firebase';
-import { addDeviceForUser } from '../app/firestoreFunctions';
-import { Picker } from '@react-native-picker/picker';
+  ScrollView,
+} from "react-native";
+import { Stack, router, useRouter } from "expo-router";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import { BleManager } from "react-native-ble-plx";
+import { Buffer } from "buffer";
+import tw from "twrnc";
+import * as SecureStore from 'expo-secure-store'
+
+import { scanNetworks } from "./wificonnections";
+import { auth } from "../src/config/firebase";
+import { addDeviceForUser } from "../app/firestoreFunctions";
+import { Picker } from "@react-native-picker/picker";
 
 const wifiServiceUUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
 const wifiCharacteristicUUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-
-//brands
 const deviceBrands = ["Carrier", "Trane", "Whirlpool", "Lennox", "Rheem"];
 
-export default function BLEConnect() {
 
-  const [devices, setDevices] = useState([]);
-  const [connectedDevice, setConnectedDevice] = useState(null);
+export default function BLEConnect() {
+  const [userEmail,    setUserEmail]    = useState<string|undefined>()
+  const [userPassword, setUserPassword] = useState<string|undefined>()
+
+  const [devices, setDevices] = useState<any[]>([]);
+  const [connectedDevice, setConnectedDevice] = useState<any>(null);
   const [scanning, setScanning] = useState(false);
   const bleManager = new BleManager();
-  const [wifiNetworks, setWifiNetworks] = useState([]);
-  const [successfullyConnectedWifi, setSuccessfullyConnectedWifi] = useState("");
-  const [currentStep, setCurrentStep] = useState("scanning");
+  const [wifiNetworks, setWifiNetworks] = useState<any[]>([]);
+  const [successfullyConnectedWifi, setSuccessfullyConnectedWifi] =
+    useState("");
+  const [currentStep, setCurrentStep] = useState<
+    "scanning" | "deviceSelection" | "connecting" | "deviceInfo" | "wifiSetup"
+  >("scanning");
   const [deviceName, setDeviceName] = useState("");
   const [showWifiWheel, setShowWifiWheel] = useState(false);
-
   const [deviceBrand, setDeviceBrand] = useState("");
-
-
-  const [selectedWifi, setSelectedWifi] = useState(null);
+  const [selectedWifi, setSelectedWifi] = useState<any>(null);
   const [wifiPassword, setWifiPassword] = useState("");
 
-  // request android ble permissions
   const requestPermissions = async () => {
-    if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.requestMultiple([
+    if (Platform.OS === "android") {
+      await PermissionsAndroid.requestMultiple([
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
         PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
       ]);
-      if (
-        granted['android.permission.ACCESS_FINE_LOCATION'] !== PermissionsAndroid.RESULTS.GRANTED ||
-        granted['android.permission.BLUETOOTH_SCAN'] !== PermissionsAndroid.RESULTS.GRANTED ||
-        granted['android.permission.BLUETOOTH_CONNECT'] !== PermissionsAndroid.RESULTS.GRANTED
-      ) {
-        console.warn('Bluetooth permissions not granted');
-      }
     }
   };
 
-  useEffect(() => {
-    requestPermissions();
-    //need to wait for BLE be working before calling it to scan devices
-    const subscription = bleManager.onStateChange((state) => {
-      if (state === 'PoweredOn') {
-        scanForDevices(); // Now it's safe to start scanning
-      }
-    }, true);
-  
-    return () => {
-      console.log("should be removing a device when I leave this page")
-      subscription.remove();
-      bleManager.destroy();
-    };
-  }, []);
+  const OutlineCard = ({ children }: { children: React.ReactNode }) => (
+    <View
+      style={[
+        tw`w-full mb-3 rounded-3xl p-4`,
+        { backgroundColor: "#1C1C1E" },
+      ]}
+    >
+      {children}
+    </View>
+  );
 
-  const handleMonitorCharacteristic = (error, characteristic) => {
-    if (error) {
-      console.warn("Notification error:", error);
-      return;
-    }
-    if (characteristic?.value) {
-      const decodedValue = Buffer.from(characteristic.value, 'base64').toString();
-      console.log("Received notification:", decodedValue);
-      if (decodedValue[0] === "[") {
-        try {
-          const networks = JSON.parse(decodedValue);
-          setWifiNetworks(networks);
-        } catch (e) {
-          console.error("Error parsing WiFi networks JSON:", e);
-        }
-      } else if (decodedValue[0] === "C") {
-        setSuccessfullyConnectedWifi(decodedValue);
-      } else {
-        console.log("Device response:", decodedValue);
-      }
-    }
-  };
-
-  //scan for devices
-  const scanForDevices = () => {
-    setScanning(true);
-    setDevices([]);
-    bleManager.startDeviceScan(null, null, (error, device) => {
-      if (error) {
-        console.warn('Scanning error:', error);
-        setScanning(false);
-        return;
-      }
-      if (device && device.name) {
-        // only show devices named "HVASEE Sensor" or "ESP32-BLE-Device"
-        if (device.name === "HVASEE Sensor" || device.name === "ESP32-BLE-Device") {
-          console.log("------------------------------------------------")
-          console.log("found our device, should be connecting")
-          connect(device)
-
-          setDevices(prev => {
-            if (!prev.find(d => d.id === device.id)) return [...prev, device];
-            return prev;
-          });
-        }
-      }
-    });
-    // stop after time interval (10s right now)
-    setTimeout(() => {
-      bleManager.stopDeviceScan();
-      setScanning(false);
-      setCurrentStep("deviceSelection");
-    }, 10000);
-  };
-
-  const connect = async (device) => {
-    // console.log(device);
-    try {
-        console.log("------------------------------------------------------------------------------");
-        const connectedDev = await bleManager.connectToDevice(device.id);
-        console.log('Connected to device:', connectedDev.name);
-        console.log('Connected dev id: ', connectedDev.id);
-        
-        setConnectedDevice(connectedDev);
-        
-        await connectedDev.discoverAllServicesAndCharacteristics();
-        
-        // Subscribe to notifications from device;
-        connectedDev.monitorCharacteristicForService(
-        wifiServiceUUID,
-        wifiCharacteristicUUID,
-        (error, characteristic) => {
-            if (error) {
-                console.warn("Notification error:", error);
-                return;
-            }
-            if (characteristic?.value) {
-                    const decodedValue = Buffer.from(characteristic.value, 'base64').toString();
-                    console.log("Received notification", decodedValue);
-                if (decodedValue[0] === "[") { // basic check to see if this is the first notification expected, a json with all of the wifi networks
-                    try {
-                        const networks = JSON.parse(decodedValue);
-                        setWifiNetworks(networks);
-                    } catch (e) {
-                        console.error("Error parsing JSON:", e);
-                    }
-                } else if (decodedValue[0] === "C"){
-                    setSuccessfullyConnectedWifi(decodedValue);
-                } else { // connection failed
-                    console.log("conenctio failed");
-                    setSuccessfullyConnectedWifi(decodedValue); // just so that it displays
-                }
-
-            }
-        }
-        );
-        // setConnected(true);
-    } catch (error) {
-        console.error('Error connecting to device:', error);
-    }
-};
-
-  const handleSelectDevice = async (device) => {
+   const handleSelectDevice = async (device) => {
     setCurrentStep("connecting");
     try {
       const connectedDev = await bleManager.connectToDevice(device.id);
@@ -229,8 +119,32 @@ export default function BLEConnect() {
       return;
     }
 
+        if (!userEmail || !userPassword) {
+      console.log(`deviceName${deviceName}`)
+      console.log(`email${userEmail}`)
+      console.log(`Password${userPassword}`)
+      Alert.alert('Error','Missing credentials')
+      return
+    }
+    try {
+      const dataToSend = `Credentials/${deviceName}/${userEmail}/${userPassword}`
+      const computedBase64Data = Buffer.from(dataToSend, 'utf8').toString('base64');
+      const result = await connectedDevice.writeCharacteristicWithResponseForService (
+        wifiServiceUUID,
+        wifiCharacteristicUUID,
+        computedBase64Data
+      );
+      console.log("Device credentials sent:", result);
+
+    } catch (error) {
+      console.error("Error sending devcie credentials:", error);
+      Alert.alert("Error", "Failed to send device credentiakls.");
+    }
+
     setCurrentStep("wifiSetup");
   };
+
+  
 
   // scan for WiFi networks
   const handleScanWifiNetworks = async () => {
@@ -289,320 +203,289 @@ export default function BLEConnect() {
     }
   };
 
-  // // close button
-  // const renderCancelButton = () => (
-  //   <TouchableOpacity style={styles.cancelButton} onPress={() => router.push('/home')}>
-  //     <Text style={styles.cancelButtonText}>X</Text>
-  //   </TouchableOpacity>
-  // );
+  const handleMonitorCharacteristic = (error, characteristic) => {
+    if (error) {
+      console.warn("Notification error:", error);
+      return;
+    }
+    if (characteristic?.value) {
+      const decodedValue = Buffer.from(characteristic.value, 'base64').toString();
+      console.log("Received notification:", decodedValue);
+      if (decodedValue[0] === "[") {
+        try {
+          const networks = JSON.parse(decodedValue);
+          setWifiNetworks(networks);
+        } catch (e) {
+          console.error("Error parsing WiFi networks JSON:", e);
+        }
+      } else if (decodedValue[0] === "C") {
+        setSuccessfullyConnectedWifi(decodedValue);
+      } else {
+        console.log("Device response:", decodedValue);
+      }
+    }
+  };
+
+
 
   const renderContent = () => {
     switch (currentStep) {
       case "scanning":
         return (
-          <View style={styles.centeredContent}>
-            <Text style={[styles.heading, styles.topHeading]}>Scanning for devices...</Text>
-            <ActivityIndicator size="large" color="#49aae6" />
-          </View>
+          <OutlineCard>
+            <Text style={styles.heading}>Scanning for devices…</Text>
+            <ActivityIndicator />
+          </OutlineCard>
         );
+
       case "deviceSelection":
         return (
-          <View style={styles.centeredContent}>
+          <OutlineCard>
+            <Text style={styles.heading}>Select your HVASee Sensor</Text>
             {devices.length === 0 ? (
-              <>
-                <Text style={[styles.heading, styles.topHeading]}>No HVASee Device Found</Text>
-                <Text style={styles.notFoundText}>
-                  Move closer to your device and make sure the device is plugged in.
-                </Text>
-              </>
+              <Text style={styles.note}>
+                No device found. Move closer and be sure it’s powered on.
+              </Text>
             ) : (
-              <>
-                <Text style={[styles.heading, styles.topHeading]}>Select your HVASee Sensor</Text>
-                <FlatList
-                  data={devices}
-                  keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity style={styles.deviceListItem} onPress={() => handleSelectDevice(item)}>
-                      <Text style={styles.deviceListText}>{item.name} ({item.id})</Text>
-                    </TouchableOpacity>
-                  )}
-                />
-              </>
+              <FlatList
+                data={devices}
+                keyExtractor={(d) => d.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.listItem}
+                    onPress={() => handleSelectDevice(item)}
+                  >
+                    <Text style={styles.listText}>{item.name}</Text>
+                  </TouchableOpacity>
+                )}
+              />
             )}
-          </View>
+          </OutlineCard>
         );
+
       case "connecting":
         return (
-          <View style={styles.centeredContent}>
-            <Text style={[styles.heading, styles.topHeading]}>Connecting to device...</Text>
-            <ActivityIndicator size="large" color="#49aae6" />
-          </View>
+          <OutlineCard>
+            <Text style={styles.heading}>Connecting…</Text>
+            <ActivityIndicator />
+          </OutlineCard>
         );
+
       case "deviceInfo":
         return (
-          <View style={styles.centeredContent}>
-            <Text style={[styles.heading, styles.topHeading]}>Name Your Device</Text>
+          <OutlineCard>
+            <Text style={styles.heading}>Name your device</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter device name"
+              placeholder="Device name"
               value={deviceName}
               onChangeText={setDeviceName}
+              placeholderTextColor="#666"
             />
-            <Text style={styles.subHeading}>Select Device Brand</Text>
-            {Platform.OS === 'ios' ? (
-              <TouchableOpacity style={styles.actionButton} onPress={selectDeviceBrandIOS}>
-                <Text style={[styles.actionButtonText, { color: deviceBrand ? '#000' : '#888' }]}>
-                  {deviceBrand ? deviceBrand : "-- Select a brand --"}
+            <Text style={styles.sub}>Brand</Text>
+
+            {Platform.OS === "ios" ? (
+              <TouchableOpacity
+                style={styles.selectBtn}
+                onPress={selectDeviceBrandIOS}
+              >
+                <Text
+                  style={[
+                    styles.selectTxt,
+                    { color: deviceBrand ? "#fff" : "#8E8E93" },
+                  ]}
+                >
+                  {deviceBrand || "Tap to pick"}
                 </Text>
               </TouchableOpacity>
             ) : (
-              <View style={styles.pickerContainer}>
+              <View style={styles.pickerWrap}>
                 <Picker
                   selectedValue={deviceBrand}
-                  onValueChange={(itemValue) => setDeviceBrand(itemValue)}
-                  style={[styles.picker, { color: deviceBrand ? '#000' : '#888' }]}
-                  mode="dropdown"
-                  itemStyle={{ color: '#000' }}
+                  onValueChange={setDeviceBrand}
+                  style={{ color: "#fff" }}
+                  dropdownIconColor="#fff"
                 >
-                  <Picker.Item label="-- Select a brand --" value="" />
-                  <Picker.Item label="Carrier" value="Carrier" />
-                  <Picker.Item label="Trane" value="Trane" />
-                  <Picker.Item label="Whirlpool" value="Whirlpool" />
-                  <Picker.Item label="Lennox" value="Lennox" />
-                  <Picker.Item label="Rheem" value="Rheem" />
+                  <Picker.Item label="-- Select brand --" value="" />
+                  {deviceBrands.map((b) => (
+                    <Picker.Item key={b} label={b} value={b} />
+                  ))}
                 </Picker>
               </View>
             )}
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmitDeviceInfo}>
-              <Text style={styles.buttonText}>Submit Device Info</Text>
+
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={handleSubmitDeviceInfo}
+            >
+              <Text style={styles.btnTxt}>Continue</Text>
             </TouchableOpacity>
-          </View>
+          </OutlineCard>
         );
+
       case "wifiSetup":
         return (
-          <View style={styles.centeredContent}>
-            <Text style={[styles.heading, styles.topHeading]}>WiFi Setup</Text>
+          <OutlineCard>
+            <Text style={styles.heading}>Wi‑Fi setup</Text>
+
             {wifiNetworks.length === 0 ? (
               <>
-                <TouchableOpacity style={styles.submitButton} onPress={handleScanWifiNetworks}>
-                  <Text style={styles.buttonText}>Scan for WiFi Networks</Text>
+                <TouchableOpacity
+                  style={styles.primaryBtn}
+                  onPress={handleScanWifiNetworks}
+                >
+                  <Text style={styles.btnTxt}>Scan networks</Text>
                 </TouchableOpacity>
-        
-                {(showWifiWheel) && (
-                <>
-                <Text style={styles.subHeading}>Scanning for WiFi networks...</Text>
-                <ActivityIndicator size="large" color="#49aae6" />
-                </>
-              )}
+                {showWifiWheel && (
+                  <ActivityIndicator style={tw`mt-3`} size="small" />
+                )}
               </>
             ) : (
               <>
-                <Text style={styles.subHeading}>Select a WiFi network:</Text>
                 <FlatList
                   data={wifiNetworks}
-                  keyExtractor={(item, index) => item.ssid + index}
+                  keyExtractor={(i, k) => `${i.ssid}-${k}`}
                   renderItem={({ item }) => (
-                    <TouchableOpacity style={styles.deviceListItem} onPress={() => setSelectedWifi(item)}>
-                      <Text style={styles.deviceListText}>{item.ssid}</Text>
+                    <TouchableOpacity
+                      style={styles.listItem}
+                      onPress={() => setSelectedWifi(item)}
+                    >
+                      <Text
+                        style={[
+                          styles.listText,
+                          selectedWifi?.ssid === item.ssid &&
+                            tw`text-blue-400`,
+                        ]}
+                      >
+                        {item.ssid}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 />
+
                 {selectedWifi && (
                   <>
-                    <Text style={styles.subHeading}>Enter WiFi Password for {selectedWifi.ssid}:</Text>
+                    <Text style={styles.sub}>
+                      Password for {selectedWifi.ssid}
+                    </Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="WiFi Password"
+                      placeholder="••••••••"
                       secureTextEntry
                       value={wifiPassword}
                       onChangeText={setWifiPassword}
+                      placeholderTextColor="#666"
                     />
-                    <TouchableOpacity style={styles.submitButton} onPress={handleSubmitWifiCredentials}>
-                      <Text style={styles.buttonText}>Submit WiFi Credentials</Text>
+                    <TouchableOpacity
+                      style={styles.primaryBtn}
+                      onPress={handleSubmitWifiCredentials}
+                    >
+                      <Text style={styles.btnTxt}>Connect</Text>
                     </TouchableOpacity>
                   </>
                 )}
               </>
             )}
-          </View>
+          </OutlineCard>
         );
+
       default:
         return null;
     }
   };
 
   return (
-    <>
-    <Stack.Screen options={{ title: 'HVASee' }} />
-          <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
-            <View style={styles.headerBar}>
+    <SafeAreaView
+      style={tw`flex-1 bg-[#0C0C0E]`}
+      edges={["top", "left", "right"]}
+    >
+      <Stack.Screen options={{ title: "HVASee", animation: "none" }} />
 
-              <Text style={styles.headerText}>
-                <Text style={styles.headerBold}>HVA</Text>
-                <Text style={styles.headerItalic}>See</Text>
-              </Text>
-              
-                <Ionicons 
-                      name="arrow-back"  
-                      size={25}           
-                      color="white"       
-                      onPress={() => router.back()} 
-                      style={styles.backButton} 
-                      />
-              
-            </View>
-          </SafeAreaView>
-          <View style={styles.container}>
-      {renderContent()}
-    </View>
-    </>
+      <View
+        style={tw`h-14 flex-row items-center justify-center bg-[#0C0C0E] border-b border-[#1C1C1E]`}
+      >
+        <Ionicons
+          name="arrow-back"
+          size={24}
+          color="white"
+          style={tw`absolute left-4`}
+          onPress={() => router.replace("/devices")}
+        />
+        <Text style={tw`text-xl font-extrabold text-white`}>
+          HVA<Text style={tw`italic`}>See</Text>
+        </Text>
+      </View>
 
+      <ScrollView
+        contentContainerStyle={tw`flex-1 px-6 pt-6 pb-6 items-center`}
+      >
+        {renderContent()}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 0 },
-  headerBar: {
-    backgroundColor: '#49aae6',
-    paddingTop: 5,
-    paddingBottom: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 70,
-    position: 'relative',
+  heading: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 12,
   },
-  headerText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
-  headerBold: { fontWeight: 'bold' },
-  headerItalic: { fontStyle: 'italic' },
-  settingsButton: {
-    position: 'absolute',
-    right: 10,
-    top: 20,
-    padding: 5,
+  sub: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#8E8E93",
+    alignSelf: "flex-start",
+    marginTop: 12,
+    marginBottom: 4,
   },
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+  note: { color: "#FF453A", textAlign: "center" },
+  input: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#262628",
+    color: "#fff",
+    marginBottom: 10,
   },
-  centeredContent: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
+  pickerWrap: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#262628",
+    overflow: "hidden",
+    marginBottom: 10,
   },
-  topHeading: {
+  selectBtn: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#262628",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  selectTxt: { fontSize: 16 },
+  primaryBtn: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#0A84FF",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 10,
   },
-  heading: {
-    fontSize: 26,
-    marginBottom: 10,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
+  btnTxt: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  listItem: {
+    width: "100%",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "#262628",
+    marginVertical: 4,
   },
-  subHeading: {
-    fontSize: 20,
-    marginBottom: 10,
-    fontWeight: '500',
-    color: '#555',
-    textAlign: 'center',
-  },
-  notFoundText: {
-    fontSize: 16,
-    color: '#ff3b30',
-    textAlign: 'center',
-    marginVertical: 10,
-  },
-  input: {
-    height: 45,
-    width: '90%',
-    borderColor: '#ccc',
-    borderWidth: 1,
-    marginBottom: 10,
-    paddingHorizontal: 15,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-  },
-  backButton: { 
-    position: 'absolute', 
-    top: 20, 
-    left: 10, 
-    padding: 10 
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    width: '90%',
-    height: 45,
-    marginBottom: 10,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-  },
-  picker: {
-    width: '100%',
-    height: 45,
-  },
-  actionButton: {
-    height: 45,
-    width: '90%',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    paddingHorizontal: 15,
-    marginBottom: 10,
-  },
-  actionButtonText: {
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  submitButton: {
-    backgroundColor: '#49aae6',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginVertical: 10,
-    width: '90%',
-    alignItems: 'center',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  deviceListItem: {
-    width: '90%',
-    padding: 15,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
-    marginVertical: 5,
-    alignItems: 'center',
-  },
-  deviceListText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  cancelButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    backgroundColor: '#ccc',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 20,
-    color: '#fff',
-  },
+  listText: { color: "#fff", fontSize: 16 },
 });

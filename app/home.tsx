@@ -26,7 +26,7 @@ import {
   Timestamp,
   where,
 } from "firebase/firestore";
-import { auth } from "../.expo/config/firebase";
+import { auth } from "../src/config/firebase";
 
 type SystemStatus = "good" | "warning" | "failure";
 interface FirestoreTelemetry {
@@ -493,7 +493,7 @@ export default function HomeScreen() {
 
                 <View style={tw`flex-row mt-4`}>
                   <Reading label="Amp" value={`${pinnedDevice.amp.toFixed(2)} A`} />
-                  <Reading label="Gas" value={`${pinnedDevice.gasPpm.toFixed(0)} ppm`} />
+                  {/* <Reading label="Gas" value={`${pinnedDevice.gasPpm.toFixed(0)} ppm`} /> */}
                 </View>
               </Pressable>
             ) : (

@@ -24,7 +24,7 @@ import {
   query,
   Timestamp,
 } from "firebase/firestore";
-import { auth } from "../.expo/config/firebase";
+import { auth } from "../src/config/firebase";
 
 
 type SystemStatus = "good" | "warning" | "failure";
@@ -329,8 +329,8 @@ export default function DevicesScreen() {
                 <Text style={tw`text-blue-500 mr-4`}>
                   {d.amp.toFixed(2)} A
                 </Text>
-                <Text style={tw`text-gray-400 mr-1`}>Gas</Text>
-                <Text style={tw`text-blue-500`}>{d.gasPpm.toFixed(1)} ppm</Text>
+                {/* <Text style={tw`text-gray-400 mr-1`}>Gas</Text>
+                <Text style={tw`text-blue-500`}>{d.gasPpm.toFixed(1)} ppm</Text> */}
               </View>
             </Pressable>
           ))}
