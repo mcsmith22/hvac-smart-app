@@ -62,31 +62,27 @@ export default function BLEConnect() {
   };
 
   useEffect(() => {
-    requestPermissions();
-    //need to wait for BLE be working before calling it to scan devices
-    const subscription = bleManager.onStateChange((state) => {
-      if (state === 'PoweredOn') {
-        scanForDevices(); // Now it's safe to start scanning
-      }
-    }, true);
-  
-    return () => {
-      console.log("should be removing a device when I leave this page")
-      subscription.remove();
-      bleManager.destroy();
-    };
-  }, []);
+    requestPermissions();
+    //need to wait for BLE be working before calling it to scan devices
+    const subscription = bleManager.onStateChange((state) => {
+      if (state === 'PoweredOn') {
+        scanForDevices(); // Now it's safe to start scanning
+      }
+    }, true);
+    (async () => {
+      const loginEmail = await SecureStore.getItemAsync('userEmail')
+      const loginPassword = await SecureStore.getItemAsync('userPassword')
+      if (loginEmail) setUserEmail(loginEmail)
+      if (loginPassword) setUserPassword(loginPassword)
+    })()
+  
+    return () => {
+      console.log("should be removing a device when I leave this page")
+      subscription.remove();
+      bleManager.destroy();
+    };
+  }, []);
 
-  const OutlineCard = ({ children }: { children: React.ReactNode }) => (
-    <View
-      style={[
-        tw`w-full mb-3 rounded-3xl p-4`,
-        { backgroundColor: "#1C1C1E" },
-      ]}
-    >
-      {children}
-    </View>
-  );
 
 
   const scanForDevices = () => {

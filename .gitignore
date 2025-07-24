@@ -2,6 +2,7 @@
 
 config.py
 *.arduino_secrets.h
+.env
 
 # dependencies
 node_modules/
@@ -11,6 +12,8 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+src/
+src/config/firebase.ts
 
 # Native
 *.orig.*
@@ -81,4 +84,4 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# @end expo-cli
+# @end expo-clisrc/config/firebase.ts
