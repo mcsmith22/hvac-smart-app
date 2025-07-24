@@ -61,6 +61,22 @@ export default function BLEConnect() {
     }
   };
 
+  useEffect(() => {
+    requestPermissions();
+    //need to wait for BLE be working before calling it to scan devices
+    const subscription = bleManager.onStateChange((state) => {
+      if (state === 'PoweredOn') {
+        scanForDevices(); // Now it's safe to start scanning
+      }
+    }, true);
+  
+    return () => {
+      console.log("should be removing a device when I leave this page")
+      subscription.remove();
+      bleManager.destroy();
+    };
+  }, []);
+
   const OutlineCard = ({ children }: { children: React.ReactNode }) => (
     <View
       style={[
@@ -72,7 +88,86 @@ export default function BLEConnect() {
     </View>
   );
 
-   const handleSelectDevice = async (device) => {
+
+  const scanForDevices = () => {
+    setScanning(true);
+    setDevices([]);
+    bleManager.startDeviceScan(null, null, (error, device) => {
+      if (error) {
+        console.warn('Scanning error:', error);
+        setScanning(false);
+        return;
+      }
+      if (device && device.name) {
+        // only show devices named "HVASEE Sensor" or "ESP32-BLE-Device"
+        if (device.name === "HVASEE Sensor" || device.name === "ESP32-BLE-Device") {
+          console.log("------------------------------------------------")
+          console.log("found our device, should be connecting")
+          connect(device)
+
+          setDevices(prev => {
+            if (!prev.find(d => d.id === device.id)) return [...prev, device];
+            return prev;
+          });
+        }
+      }
+    });
+    // stop after time interval (10s right now)
+    setTimeout(() => {
+      bleManager.stopDeviceScan();
+      setScanning(false);
+      setCurrentStep("deviceSelection");
+    }, 10000);
+  };
+
+  const connect = async (device) => {
+    // console.log(device);
+    try {
+        console.log("------------------------------------------------------------------------------");
+        const connectedDev = await bleManager.connectToDevice(device.id);
+        console.log('Connected to device:', connectedDev.name);
+        console.log('Connected dev id: ', connectedDev.id);
+        
+        setConnectedDevice(connectedDev);
+        
+        await connectedDev.discoverAllServicesAndCharacteristics();
+        
+        // Subscribe to notifications from device;
+        connectedDev.monitorCharacteristicForService(
+        wifiServiceUUID,
+        wifiCharacteristicUUID,
+        (error, characteristic) => {
+            if (error) {
+                console.warn("Notification error:", error);
+                return;
+            }
+            if (characteristic?.value) {
+                    const decodedValue = Buffer.from(characteristic.value, 'base64').toString();
+                    console.log("Received notification", decodedValue);
+                if (decodedValue[0] === "[") { // basic check to see if this is the first notification expected, a json with all of the wifi networks
+                    try {
+                        const networks = JSON.parse(decodedValue);
+                        setWifiNetworks(networks);
+                    } catch (e) {
+                        console.error("Error parsing JSON:", e);
+                    }
+                } else if (decodedValue[0] === "C"){
+                    setSuccessfullyConnectedWifi(decodedValue);
+                } else { // connection failed
+                    console.log("conenctio failed");
+                    setSuccessfullyConnectedWifi(decodedValue); // just so that it displays
+                }
+
+            }
+        }
+        );
+        // setConnected(true);
+    } catch (error) {
+        console.error('Error connecting to device:', error);
+    }
+};
+
+  const handleSelectDevice = async (device) => {
     setCurrentStep("connecting");
     try {
       const connectedDev = await bleManager.connectToDevice(device.id);
@@ -106,7 +201,6 @@ export default function BLEConnect() {
       }
     );
   };
-
 
   // device info
   const handleSubmitDeviceInfo = async () => {
