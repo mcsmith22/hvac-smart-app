@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,29 @@ const wifiServiceUUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
 const wifiCharacteristicUUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
 const deviceBrands = ["Carrier", "Trane", "Whirlpool", "Lennox", "Rheem"];
 
+function OutlineCard({ children, style, ...rest }: { children: React.ReactNode; style?: any }) {
+  return (
+    <View
+      style={[
+        {
+          width: '100%',
+          borderWidth: 1,
+          borderColor: '#3A3A3C',
+          borderRadius: 16,
+          padding: 20,
+          backgroundColor: '#1C1C1E',
+          marginBottom: 20,
+        },
+        style,
+      ]}
+      {...rest}
+    >
+      {children}
+    </View>
+  );
+}
+
+
 
 export default function BLEConnect() {
   const [userEmail,    setUserEmail]    = useState<string|undefined>()
@@ -38,7 +61,7 @@ export default function BLEConnect() {
   const [devices, setDevices] = useState<any[]>([]);
   const [connectedDevice, setConnectedDevice] = useState<any>(null);
   const [scanning, setScanning] = useState(false);
-  const bleManager = new BleManager();
+  const bleManager = useRef(new BleManager()).current;
   const [wifiNetworks, setWifiNetworks] = useState<any[]>([]);
   const [successfullyConnectedWifi, setSuccessfullyConnectedWifi] =
     useState("");
@@ -81,7 +104,7 @@ export default function BLEConnect() {
       subscription.remove();
       bleManager.destroy();
     };
-  }, []);
+  }, [bleManager]);
 
 
 
