@@ -23,7 +23,7 @@ import {
   Timestamp,
   where,
 } from "firebase/firestore";
-import { auth } from "../../.expo/config/firebase";
+import { auth } from "../../src/config/firebase";
 import {
   VictoryChart,
   VictoryLine,
@@ -345,19 +345,19 @@ const status: SystemStatus = deriveStatus(
               Live Sensor Data
             </Text>
 
-            <View style={tw`flex-row flex-wrap justify-between`}>
+            <View style={tw`items-center justify-center w-full mt-2`}>
               <MetricBox
                 icon="flash"
                 value={`${fmt(latest?.amp, 2)}A`}
                 label="Amperage"
                 accent="#FF9F0A"
               />
-              <MetricBox
+              {/* <MetricBox
                 icon="speedometer"
                 value={`${fmt(latest?.gasPpm)}`}
                 label="Gas PPM"
                 accent="#30D158"
-              />
+              /> */}
             </View>
 
             <Text style={tw`text-center text-xs text-gray-400 mt-4`}>
@@ -372,7 +372,7 @@ const status: SystemStatus = deriveStatus(
           </Text>
         </View>
 
-        <View
+        {/* <View
           style={[
             tw`mx-6 mt-4 p-4 rounded-3xl overflow-hidden`,
             { backgroundColor: "#0D0D12" },
@@ -413,7 +413,7 @@ const status: SystemStatus = deriveStatus(
               />
             </VictoryChart>
           )}
-        </View>
+        </View> */}
 
         <View
           style={[

@@ -1,197 +1,142 @@
-import React, { useState } from 'react';
-import { SafeAreaView, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../.expo/config/firebase';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+/* ---------------------------------------------------------------------------
+ *  signup.tsx  –  Instagram-style sign-up (confirm-password)      2025-07-08
+ *--------------------------------------------------------------------------- */
+import React, { useState } from "react";
+import {
+  SafeAreaView,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
+import { Stack, useRouter } from "expo-router";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../src/config/firebase";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import tw from "twrnc";
 
-export default function SignupScreen() {
-  const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [passwordVisible, setPasswordVisible] = useState(false);
+/* ────────── util ────────── */
+const fmtErr = (c: string) =>
+  c === "auth/invalid-email"
+    ? "Invalid e-mail"
+    : c === "auth/weak-password"
+    ? "Password ≥ 6 chars"
+    : c === "auth/email-already-in-use"
+    ? "E-mail already in use"
+    : "Something went wrong";
 
-  const parseAuthError = (code: string): string => {
-    switch (code) {
-      case 'auth/invalid-email':
-        return 'Please enter a valid email address.';
-      case 'auth/weak-password':
-        return 'Password should be at least 6 characters.';
-      case 'auth/email-already-in-use':
-        return 'That email address is already in use.';
-      default:
-        return 'Something went wrong. Please try again.';
-    }
-  };
+export default function Signup() {
+  const nav = useRouter();
+  const [email, setEmail]             = useState("");
+  const [pw, setPw]                   = useState("");
+  const [pw2, setPw2]                 = useState("");
+  const [showPw, setShowPw]           = useState(false);
+  const [busy, setBusy]               = useState(false);
+  const [err, setErr]                 = useState("");
 
-  const handleSignup = async () => {
-    if (!email.trim()) {
-      setErrorMessage('Please enter an email.');
-      return;
-    }
-    if (!password) {
-      setErrorMessage('Please enter a password.');
-      return;
-    }
+  /* ──────── actions ──────── */
+  const submit = async () => {
+    if (!email.trim())          return setErr("Enter e-mail");
+    if (!pw)                    return setErr("Enter password");
+    if (pw.length < 6)          return setErr("Password ≥ 6 chars");
+    if (pw !== pw2)             return setErr("Passwords don’t match");
+    setErr("");
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      console.log('User created:', userCredential.user);
-      setErrorMessage('');
-      router.replace('/'); 
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      setErrorMessage(parseAuthError(error.code));
+      setBusy(true);
+      await createUserWithEmailAndPassword(auth, email, pw);
+      nav.replace("/");                       // back to login
+    } catch (e: any) {
+      setErr(fmtErr(e.code));
+    } finally {
+      setBusy(false);
     }
   };
 
+  /* ──────── ui ──────── */
   return (
-    <>
+    <SafeAreaView style={tw`flex-1 bg-black`} edges={["top", "left", "right"]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <SafeAreaView style={{ backgroundColor: '#49aae6' }} edges={['left', 'right']}>
-        <View style={styles.headerBar}>
-          <Text style={styles.headerText}>
-            <Text style={styles.headerBold}>HVA</Text>
-            <Text style={styles.headerItalic}>See</Text>
-          </Text>
-        </View>
-      </SafeAreaView>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={tw`flex-1 items-center pt-20`}
+      >
+        {/* word-mark */}
+        <Text style={tw`text-4xl font-extrabold text-white mb-10`}>
+          HVA<Text style={tw`italic`}>See</Text>
+        </Text>
 
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.title}>Create an Account</Text>
-        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-        <TextInput
-          style={[styles.input, styles.wideInput]}
-          placeholder="Email"
-          autoCapitalize="none"
-          onChangeText={setEmail}
-          value={email}
-        />
-        <View style={[styles.passwordContainer, styles.wideInput]}>
+        {/* card */}
+        <View style={tw`w-11/12 max-w-md bg-[#1C1C1E] px-6 py-8 rounded-3xl`}>
+          {err ? <Text style={tw`text-red-400 text-center mb-4`}>{err}</Text> : null}
+
+          {/* e-mail */}
           <TextInput
-            style={[styles.input, styles.passwordInput]}
-            placeholder="Password"
-            secureTextEntry={!passwordVisible}
-            onChangeText={setPassword}
-            value={password}
+            style={tw`bg-[#111113] text-white px-4 py-3 rounded-xl mb-4`}
+            placeholder="Email"
+            placeholderTextColor="#6B7280"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            onChangeText={setEmail}
+            value={email}
           />
-          <TouchableOpacity
-            style={styles.eyeButton}
-            onPress={() => setPasswordVisible(!passwordVisible)}
-          >
-            <Ionicons
-              name={passwordVisible ? 'eye-off' : 'eye'}
-              size={20}
-              color="#49aae6"
+
+          {/* password */}
+          <View style={tw`relative mb-4`}>
+            <TextInput
+              style={tw`bg-[#111113] text-white px-4 py-3 pr-12 rounded-xl`}
+              placeholder="Password (≥ 6 chars)"
+              placeholderTextColor="#6B7280"
+              secureTextEntry={!showPw}
+              onChangeText={setPw}
+              value={pw}
             />
+            <TouchableOpacity
+              onPress={() => setShowPw(!showPw)}
+              style={tw`absolute right-4 top-3`}
+            >
+              <Ionicons
+                name={showPw ? "eye-off" : "eye"}
+                size={22}
+                color="#8E8E93"
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* confirm password */}
+          <TextInput
+            style={tw`bg-[#111113] text-white px-4 py-3 rounded-xl mb-6`}
+            placeholder="Confirm Password"
+            placeholderTextColor="#6B7280"
+            secureTextEntry={!showPw}
+            onChangeText={setPw2}
+            value={pw2}
+          />
+
+          {/* sign-up btn */}
+          <TouchableOpacity
+            style={tw`bg-[#0A84FF] py-3 rounded-xl items-center`}
+            disabled={busy}
+            onPress={submit}
+          >
+            {busy ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={tw`text-white font-semibold text-lg`}>Sign Up</Text>
+            )}
           </TouchableOpacity>
         </View>
-        <Text style={styles.requirementsText}>
-          Password must be at least 6 characters long.
-        </Text>
-        <TouchableOpacity style={[styles.button, styles.wideInput]} onPress={handleSignup}>
-          <Text style={styles.buttonText}>Sign Up</Text>
+
+        {/* link back to login */}
+        <TouchableOpacity style={tw`mt-6`} onPress={() => nav.replace("/")}>
+          <Text style={tw`text-[#0A84FF]`}>
+            Already have an account? <Text style={tw`font-semibold`}>Log In</Text>
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.link} onPress={() => router.push('/')}>
-          <Text style={styles.linkText}>Already have an account? Log In</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    </>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 0,
-  },
-  headerBar: {
-    backgroundColor: '#49aae6',
-    paddingTop: 5,
-    paddingBottom: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 70,
-  },
-  headerText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerBold: {
-    fontWeight: 'bold',
-  },
-  headerItalic: {
-    fontStyle: 'italic',
-  },
-  container: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    paddingHorizontal: 20, 
-    backgroundColor: '#fff',
-    alignItems: 'center'
-  },
-  title: { 
-    fontSize: 28, 
-    fontWeight: 'bold', 
-    marginBottom: 20, 
-  },
-  errorText: {
-    color: 'red',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    backgroundColor: '#fff'
-  },
-  wideInput: { 
-    width: '80%',
-    alignSelf: 'center'
-  },
-  passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-    marginBottom: 16,
-  },
-  passwordInput: {
-    flex: 1,
-    paddingRight: 40,
-  },
-  eyeButton: {
-    position: 'absolute',
-    right: 10,
-    top: '50%', 
-    transform: [{ translateY: -21 }],
-    padding: 4,
-  },
-  requirementsText: { 
-    color: '#666', 
-    marginBottom: 16, 
-    fontSize: 14, 
-    textAlign: 'center' 
-  },
-  button: {
-    backgroundColor: '#49aae6',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  link: {
-    alignSelf: 'center',
-    marginTop: 10,
-  },
-  linkText: {
-    color: '#49aae6',
-  },
-});

@@ -1,5 +1,5 @@
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../.expo/config/firebase';
+import { db } from '../src/config/firebase';
 
 export async function addDeviceForUser(userId: string, deviceId: string, deviceName: string, deviceBrand: string) {
   try {
